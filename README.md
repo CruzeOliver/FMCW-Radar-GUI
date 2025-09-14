@@ -303,7 +303,7 @@ Shows a zoomed FFT spectrum with overlaid peak lines from four frequency-estimat
 
 ### Frequency Spectrum Analysis
 
-![Frequency](doc/image/Frequency Spectrum Analysis.png)
+![Frequency](doc/image/Frequency.png)
 
 ------
 

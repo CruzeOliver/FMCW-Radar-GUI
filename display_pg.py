@@ -682,7 +682,7 @@ class PgDisplay:
                                 # 超出范围时不绘制，避免线条过长
                                 curve.clear()
                                 continue
-                        curve.setData([freq, freq], [0, magnitude * 1.05])  # 稍高于频谱峰值
+                        curve.setData([freq, freq], [0, magnitude * 2])  # 稍高于频谱峰值
                     elif curve:
                         curve.clear()  # 清除无效数据
 

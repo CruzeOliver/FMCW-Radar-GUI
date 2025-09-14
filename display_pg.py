@@ -646,6 +646,7 @@ class PgDisplay:
                         czt_max = np.percentile(czt_abs, 99.9)
                         czt_clipped = np.clip(czt_abs, 0, czt_max)
                         curve_czt_combo.setData(czt_freq_axis, czt_clipped)
+                        #curve_czt_combo.setData(czt_freq_axis, czt_clipped, symbol='o', pen=None)
 
                 # 绘制 CZT 单独频谱（增加数据有效性检查）
                 if curve_czt_only and czt_spectrum is not None:
@@ -659,7 +660,8 @@ class PgDisplay:
                         czt_abs_only = np.abs(czt_spectrum)
                         czt_max_only = np.percentile(czt_abs_only, 99.9)
                         czt_clipped_only = np.clip(czt_abs_only, 0, czt_max_only)
-                        curve_czt_only.setData(czt_freq_axis_only, czt_clipped_only)
+                        #curve_czt_only.setData(czt_freq_axis_only, czt_clipped_only)
+                        curve_czt_only.setData(czt_freq_axis_only, czt_clipped_only, symbol='x', pen=None)
 
                 # 计算参考幅值（用于垂直线高度）
                 magnitude = np.max(czt_combo_spectrum) if len(czt_combo_spectrum) > 0 else 1.0

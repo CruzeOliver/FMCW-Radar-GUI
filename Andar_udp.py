@@ -1,7 +1,6 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 import sys, socket, threading
 import os
-#from dataclasses import dataclass
 from PyQt5.QtCore import QObject, pyqtSignal, QRectF, Qt
 import time
 from PyQt5 import QtCore

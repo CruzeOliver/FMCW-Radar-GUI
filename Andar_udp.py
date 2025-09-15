@@ -94,12 +94,18 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.CJLU_logo_label.setPixmap(pixmap)
             self.CJLU_logo_label.setScaledContents(True)
         #self.resize(1800, 1400)
-
         self.pushButton_Disconnect.setEnabled(False)
+
         options = ["CPP", "Python"]
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.currentIndex = 0  # 默认选择第一个选项
-        self.channelstr = None
+
+        options_channel = ["tx0rx0", "tx0rx1", "tx1rx0", "tx1rx1"]
+        self.comboBox_waterfallchannel.addItems(options_channel)
+        self.comboBox_waterfallchannel.currentIndex = 0
+        self.comboBox_waterfallchannel.currentTextChanged.connect(self.waterfall_channel_changed)
+
+        self.channelstr = "tx0rx0"
         self.fft_results_1D = None
         self.fft_results_2D = None
         self.frame_all_data = None
@@ -153,7 +159,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.bus.log.connect(self._log)
         self.bus.frame_ready.connect(self.on_frame_ready)
 
-        self.radioButton_t0r0.setChecked(True)
         self.tableWidget_distance.setColumnCount(6)
         header_labels = ['index','Angel','FFT', 'Macleod', 'CZT FFT Peak', 'CZT Macleod']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
@@ -167,6 +172,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """生成一个唯一的 .mat 文件名并保存为实例属性"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         self.save_filename = f"{timestamp}_raw_data_py.mat"
+
+    def waterfall_channel_changed(self):
+        selected_channel = self.comboBox_waterfallchannel.currentText()
+        self.channelstr = selected_channel
 
     # ---- 重定向日志到 textEdit_log ----
     def _log(self, s: str):
@@ -242,16 +251,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
 
-        if self.radioButton_t0r0.isChecked():
-            self.channelstr = "tx0rx0"
-        elif self.radioButton_t0r1.isChecked():
-            self.channelstr = "tx0rx1"
-        elif self.radioButton_t1r0.isChecked():
-            self.channelstr = "tx1rx0"
-        elif self.radioButton_t1r1.isChecked():
-            self.channelstr = "tx1rx1"
-        self.display.update_waterfall(iq, chirp, sample, self.channelstr)
 
+        self.display.update_waterfall(iq, chirp, sample, self.channelstr)
         # 判断是否满足显示间隔
         if current_time - self.last_display_time > self.display_interval:
             self.display.update_adc4(iq, chirp, sample)
@@ -489,15 +490,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         #print(f"显示当前帧数据：{frame_data}")
         #print(f"帧数据形状：{frame_data.shape}")
-
-        if self.radioButton_t0r0.isChecked():
-            self.channelstr = "tx0rx0"
-        elif self.radioButton_t0r1.isChecked():
-            self.channelstr = "tx0rx1"
-        elif self.radioButton_t1r0.isChecked():
-            self.channelstr = "tx1rx0"
-        elif self.radioButton_t1r1.isChecked():
-            self.channelstr = "tx1rx1"
 
         self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
         selected_label = self.comboBox_MatFrom.currentText()

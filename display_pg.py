@@ -1211,6 +1211,30 @@ class PgDisplay:
             h['pw_amp'].setRange(xRange=(0, 1), yRange=(0, 1), padding=0.02)
             h['pw_phase'].setRange(xRange=(0, 1), yRange=(-np.pi, np.pi), padding=0.02)
 
+        # 重置频率图及缓存
+        for h in self.pg_frequency_dict.values():
+        # 遍历字典中的每个 PlotCurveItem 句柄
+            if 'FFT' in h:
+                h['FFT'].clear()
+            if 'FFT-Peak' in h:
+                h['FFT-Peak'].clear()
+            if 'Macleod' in h:
+                h['Macleod'].clear()
+            if 'CZT' in h:
+                h['CZT'].clear()
+            if 'Macleod-CZt' in h:
+                h['Macleod-CZt'].clear()
+            if 'czt_combo_spectrum' in h:
+                h['czt_combo_spectrum'].clear()
+            if 'czt_spectrum' in h:
+                h['czt_spectrum'].clear()
+
+            # 重置坐标范围，可以设置为默认值或根据需要调整
+            if 'pw' in h:
+                h['pw'].setRange(xRange=(0, 1), yRange=(0, 1), padding=0.05)
+
+
+
 
 
 #============================ Stable 3D Waterfall ====================

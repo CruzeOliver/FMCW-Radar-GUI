@@ -19,7 +19,7 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-# QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
@@ -97,11 +97,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         options = ["CPP", "Python"]
         self.comboBox_MatFrom.addItems(options)
-        self.comboBox_MatFrom.currentIndex = 0  # 默认选择第一个选项
+        self.comboBox_MatFrom.setCurrentIndex(1)
 
         options_channel = ["tx0rx0", "tx0rx1", "tx1rx0", "tx1rx1"]
         self.comboBox_waterfallchannel.addItems(options_channel)
-        self.comboBox_waterfallchannel.currentIndex = 0
+        self.comboBox_waterfallchannel.setCurrentIndex(0)
         self.comboBox_waterfallchannel.currentTextChanged.connect(self.waterfall_channel_changed)
 
         self.channelstr = "tx0rx0"
@@ -115,12 +115,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.current_index = 0
         self.generate_unique_filename()
 
+        # 校准相关变量
         self.zij_vector_list = []
         self.warmup_count = 0
         self.warmup_avg = None
         self.alpha_matrix = None
         self.phi_matrix = None
 
+        # display 控件相关变量
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.6
 
@@ -159,7 +161,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.bus.frame_ready.connect(self.on_frame_ready)
 
         self.tableWidget_distance.setColumnCount(6)
-        header_labels = ['index','Angel','FFT', 'Macleod', 'CZT FFT Peak', 'CZT Macleod']
+        header_labels = ['index','Angel','FFT', 'Macleod', 'CTZ', 'Macleod-CTZ']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
         self.tableWidget_distance.setEditTriggers(QTableWidget.NoEditTriggers)
         # QHeaderView.Stretch 模式会使所有列等宽拉伸，填充可用空间。

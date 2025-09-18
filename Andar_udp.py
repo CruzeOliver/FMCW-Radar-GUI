@@ -403,7 +403,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def save_to_mat(self,frame_data, sample_number, chirp_number, filename= None):
         try:
             # 获取当前时间戳，确保每一帧有唯一的变量名
-            timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+            timestamp_with_ms = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
 
             # 计算预期的数据大小：4通道，I/Q每个16bit，每个数据点2字节
             num_antennas = 4  # 4通道
@@ -436,7 +436,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 existing_data = {}
 
             # 为当前帧生成唯一的变量名（时间戳 + 帧号）
-            frame_timestamp = f"frame_{timestamp}"
+            frame_timestamp = f"frame_{timestamp_with_ms}"
 
             # 将当前帧的数据添加到现有数据字典中
             existing_data[frame_timestamp] = reshaped_data[0]
@@ -477,6 +477,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 获取所有包含帧数据的变量（以 "frame" 开头的变量名）
             self.frame_data_list = [key for key in data.keys() if key.startswith('frame')]
+            #self.bus.log.emit(f"找到 {len(self.frame_data_list)} 帧数据变量")
             self.current_index = 0  # 初始化为第一帧
             # 获取第一帧的数据
             frame_data = self.frame_all_data[self.frame_data_list[self.current_index]]

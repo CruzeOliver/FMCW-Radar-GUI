@@ -6,7 +6,7 @@ from scipy.signal import czt, get_window
 #============ 雷达参数配置 =================
 
 C = 3e8  # 光速，单位 m/s
-CenterFrequency = 77  # 中心频率，单位 GHz
+CenterFrequency = 60  # 中心频率，单位 GHz 77
 wavelength = C / (CenterFrequency * 1e9)  # 波长，单位 m
 ADC_SAMPLE_RATE = 7.14  # 采样率，单位 MHz
 FM = 3000  # 调频带宽，单位 MHz

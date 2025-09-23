@@ -271,9 +271,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
 
         # 更新表格显示距离、角度计算结果
-        row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
-                    f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
-                    f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
+        # row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
+        #             f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
+        #             f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
+        row_data = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+                    f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                    f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
         row_count = self.tableWidget_distance.rowCount()
         self.tableWidget_distance.insertRow(row_count)
         for i, value in enumerate(row_data):

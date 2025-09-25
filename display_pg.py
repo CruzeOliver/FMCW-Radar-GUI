@@ -98,10 +98,15 @@ class PgDisplay:
     def update_direct_wave_phase(self, fft_results: np.ndarray):
         """
         自动更新所有通道的直达波相位监控图（无需传入 frame_idx）
+        通过限制历史数据长度和强制设置 X 轴范围来实现平滑滚动。
 
         参数：
             fft_results (np.ndarray): 1D-FFT 结果，shape = (4, n_chirp, n_sample)
         """
+        MAX_HISTORY_LEN = 100
+        REF_KEY = 'DWtx0rx0' # 参考通道键
+        # -----------------------------------------------------
+
         # --- 初始化帧计数器（首次调用时创建）---
         if not hasattr(self, '_direct_wave_frame_count'):
             self._direct_wave_frame_count = 0
@@ -109,54 +114,99 @@ class PgDisplay:
         if fft_results.ndim != 3 or fft_results.shape[0] != 4:
             raise ValueError("fft_results must be shape (4, n_chirp, n_sample)")
 
-        bin_index = 1  # 直达波所在距离单元
+        bin_index = 0  # 直达波所在距离单元
 
         # --- 提取 bin=1 并对 chirp 求平均 → 复数信号 ---
         S_bin1 = np.mean(fft_results[:, :, bin_index], axis=1)  # shape: (4,)
-        phases = np.angle(S_bin1)  # 提取相位
+        phases = np.angle(S_bin1)  # 提取相位（弧度制）
 
         # --- 通道映射 ---
         DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
 
-        # --- 更新每个通道 ---
+        frame_idx = self._direct_wave_frame_count
+
+        # 预先处理参考通道的数据（确保最新的数据已进入缓冲区）
+        if REF_KEY not in self.pg_plot_dict:
+            # 如果参考通道不存在，跳过更新
+            return
+
+        # --- 循环更新每个通道 ---
+        ref_phase_buffer_rolled = [] # 仅用于存储参考通道的已滚动相位数据
+
         for idx, key in enumerate(DirectWave_keys):
             if key not in self.pg_plot_dict:
                 continue
 
             data = self.pg_plot_dict[key]
-            phase = phases[idx]
+            current_phase = phases[idx]
 
-            # 1. 使用内部帧计数
-            frame_idx = self._direct_wave_frame_count
-
-            # 2. 更新数据缓冲区
+            # 1. 更新数据缓冲区
             data['frame_buffer'].append(frame_idx)
-            data['phase_buffer'].append(phase)
+            data['phase_buffer'].append(current_phase)
 
-            # 3. 同步参考相位（tx0rx0）
-            if key == 'DWtx0rx0':
-                data['ref_phase_buffer'] = data['phase_buffer'].copy()
-            else:
-                ref_data = self.pg_plot_dict['DWtx0rx0']
-                data['ref_phase_buffer'] = ref_data['phase_buffer'].copy()
+            #    使用列表切片来保持最新的 N 个元素
+            data['frame_buffer'] = data['frame_buffer'][-MAX_HISTORY_LEN:]
+            data['phase_buffer'] = data['phase_buffer'][-MAX_HISTORY_LEN:]
 
-            # 4. 对齐长度
-            n = min(len(data['frame_buffer']), len(data['ref_phase_buffer']))
-            frames = data['frame_buffer'][-n:]
-            self_phase = data['phase_buffer'][-n:]
-            ref_phase = data['ref_phase_buffer'][-n:]
+            # 3. 同步参考相位（DWtx0rx0）
+            if key == REF_KEY:
+                ref_phase_buffer_rolled = data['phase_buffer'] # 获取已滚动的参考相位
+
+            # 非参考通道：使用已滚动的参考通道相位
+            # ❗ 注意：这里直接将已滚动的参考相位列表赋值给自己的 ref_phase_buffer
+            data['ref_phase_buffer'] = ref_phase_buffer_rolled
+
+            # 4. 获取最终绘制数据
+            frames = data['frame_buffer']
+            self_phase = data['phase_buffer']
+            ref_phase = data['ref_phase_buffer']
+            n = len(frames)
 
             # 5. 更新曲线
+            # 1. 主相位曲线（例如黄色圆圈）
+            # data['phase'] = data['pw_phase'].plot(
+            #     pen=None,               # 【关键修改】移除连接线
+            #     symbol='o',             # 【关键修改】使用圆圈符号
+            #     symbolPen=pg.mkPen('y', width=1), # 设置符号边框颜色（例如黄色）
+            #     symbolBrush=pg.mkBrush(254, 254, 1), # 符号内部填充颜色（例如半透明黄色）
+            #     symbolSize=6            # 符号大小
+            # )
+
+            # # 2. 参考相位曲线（例如红色三角形）
+            # data['phase_ref'] = data['pw_phase'].plot(
+            #     pen=None,               # 【关键修改】移除连接线
+            #     symbol='o',             # 【关键修改】使用三角形符号
+            #     symbolPen=pg.mkPen('r', width=1), # 设置符号边框颜色（例如红色）
+            #     symbolBrush=pg.mkBrush(254, 1, 1), # 符号内部填充颜色（例如半透明红色）
+            #     symbolSize=6
+            # )
             data['phase'].setData(frames, self_phase)
             data['phase_ref'].setData(frames, ref_phase)
 
-            # 6. 更新文本指标（Δϕ）
+            # 6. 【核心修复2：强制 X 轴范围滚动】
             if n > 0:
-                delta_phase = self_phase[-1] - ref_phase[-1]
-                delta_phase = (delta_phase + np.pi) % (2 * np.pi) - np.pi
+                x_min = frames[0]
+                x_max = frames[-1]
+
+                # 获取 PlotDataItem 所属的 ViewBox
+                plot_view_box = data['phase'].getViewBox()
+                # 强制设置 X 轴范围，使视图始终显示最新的 MAX_HISTORY_LEN 帧
+                # padding=0.01 避免数据点紧贴边界
+                plot_view_box.setXRange(x_min, x_max, padding=1e-2)
+
+                # 7. 更新文本指标（Δϕ）
+                last_self_phase = self_phase[-1]
+                last_ref_phase = ref_phase[-1]
+
+                # 计算并归一化相位差到 (-pi, pi]
+                delta_phase = last_self_phase - last_ref_phase
+                delta_phase = np.arctan2(np.sin(delta_phase), np.cos(delta_phase))
+
                 text = f"Δϕ = {np.degrees(delta_phase):+.2f}°"
                 data['metrics_text'].setText(text)
-                data['metrics_text'].setPos(frames[-1], np.mean(self_phase[-min(10, n):]) - 0.5)
+
+                # 文本位置设置在最新帧，并稍微偏离平均相位值
+                data['metrics_text'].setPos(frames[-1], np.mean(self_phase[-min(10, n):]) + 2)
 
         # --- 帧计数自增（放在最后，确保所有通道用同一帧号）---
         self._direct_wave_frame_count += 1

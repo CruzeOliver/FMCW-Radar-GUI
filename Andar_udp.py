@@ -99,11 +99,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.setCurrentIndex(1)
 
-        options_channel = ["tx0rx0", "tx0rx1", "tx1rx0", "tx1rx1"]
-        self.comboBox_waterfallchannel.addItems(options_channel)
-        self.comboBox_waterfallchannel.setCurrentIndex(0)
-        self.comboBox_waterfallchannel.currentTextChanged.connect(self.waterfall_channel_changed)
-
         self.channelstr = "tx0rx0"
         self.fft_results_1D = None
         self.fft_results_2D = None
@@ -133,7 +128,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
         ConstellationDiagram_keys = ['CDtx0rx0', 'CDtx0rx1', 'CDtx1rx0', 'CDtx1rx1']
         amp_phase_keys = ['APtx0rx0', 'APtx0rx1', 'APtx1rx0', 'APtx1rx1']
-        waterfall_keys = ['Waterfall']
         frequency_keys = ['frequency']
 
         adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
@@ -143,7 +137,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         DirectWave_placeholders = {k: getattr(self, f'widget_{k}') for k in DirectWave_keys}
         constellation_placeholders = {k: getattr(self, f'widget_{k}') for k in ConstellationDiagram_keys}
         amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
-        waterfall_placeholders = {k: getattr(self, f'widget_{k}') for k in waterfall_keys}
         frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
 
         #GUI显示界面绑定实例化
@@ -155,7 +148,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             DirectWave_placeholders = DirectWave_placeholders,
             constellation_placeholders = constellation_placeholders,
             amp_phase_placeholders = amp_phase_placeholders,
-            waterfall_placeholders = waterfall_placeholders,
             frequency_placeholders = frequency_placeholders
         )
 
@@ -178,10 +170,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """生成一个唯一的 .mat 文件名并保存为实例属性"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         self.save_filename = f"{timestamp}_raw_data_py.mat"
-
-    def waterfall_channel_changed(self):
-        selected_channel = self.comboBox_waterfallchannel.currentText()
-        self.channelstr = selected_channel
 
     # ---- 重定向日志到 textEdit_log ----
     def _log(self, s: str):
@@ -257,8 +245,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
 
-
-        self.display.update_waterfall(iq, chirp, sample, self.channelstr)
         # 判断是否满足显示间隔
         if current_time - self.last_display_time > self.display_interval:
             self.display.update_adc4(iq, chirp, sample)
@@ -540,7 +526,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             calibrated_iq = iq
 
         self.display.update_adc4(calibrated_iq, chirp, sample)
-        self.display.update_waterfall(calibrated_iq, chirp, sample, self.channelstr)
         self.display.update_direct_wave_phase(self.fft_results_1D)
         self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)
         self.display.update_amp_phase(calibrated_iq, chirp=0, decimate=1, unwrap_phase=False)

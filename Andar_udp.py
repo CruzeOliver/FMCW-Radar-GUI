@@ -130,6 +130,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         fft1d_keys = ['1DFFTtx0rx0', '1DFFTtx0rx1', '1DFFTtx1rx0', '1DFFTtx1rx1']
         fft2d_keys = ['2DFFTtx0rx0', '2DFFTtx0rx1', '2DFFTtx1rx0', '2DFFTtx1rx1']
         point_cloud_keys = ['PointCloud']
+        DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
         ConstellationDiagram_keys = ['CDtx0rx0', 'CDtx0rx1', 'CDtx1rx0', 'CDtx1rx1']
         amp_phase_keys = ['APtx0rx0', 'APtx0rx1', 'APtx1rx0', 'APtx1rx1']
         waterfall_keys = ['Waterfall']
@@ -139,6 +140,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
         fft2d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft2d_keys}
         point_cloud_placeholders = {k: getattr(self, f'widget_{k}') for k in point_cloud_keys}
+        DirectWave_placeholders = {k: getattr(self, f'widget_{k}') for k in DirectWave_keys}
         constellation_placeholders = {k: getattr(self, f'widget_{k}') for k in ConstellationDiagram_keys}
         amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
         waterfall_placeholders = {k: getattr(self, f'widget_{k}') for k in waterfall_keys}
@@ -150,6 +152,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             fft1d_placeholders = fft1d_placeholders,
             fft2d_placeholders = fft2d_placeholders,
             point_cloud_placeholders = point_cloud_placeholders,
+            DirectWave_placeholders = DirectWave_placeholders,
             constellation_placeholders = constellation_placeholders,
             amp_phase_placeholders = amp_phase_placeholders,
             waterfall_placeholders = waterfall_placeholders,
@@ -538,6 +541,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         self.display.update_adc4(calibrated_iq, chirp, sample)
         self.display.update_waterfall(calibrated_iq, chirp, sample, self.channelstr)
+        self.display.update_direct_wave_phase(self.fft_results_1D)
         self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)
         self.display.update_amp_phase(calibrated_iq, chirp=0, decimate=1, unwrap_phase=False)
         self.display.update_fft1d(self.fft_results_1D, sample)

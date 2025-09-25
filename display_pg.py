@@ -23,6 +23,7 @@ class PgDisplay:
                  fft1d_placeholders: Dict[str, QWidget],
                  fft2d_placeholders: Dict[str, QWidget],
                  point_cloud_placeholders: Dict[str, QWidget],
+                 DirectWave_placeholders: Dict[str, QWidget],
                  constellation_placeholders: Dict[str, QWidget],
                  amp_phase_placeholders: Dict[str, QWidget],
                  waterfall_placeholders: Dict[str, QWidget],
@@ -46,6 +47,7 @@ class PgDisplay:
         self.pg_img_dict: Dict[str, ImageView] = {}        # 2DFFT 图像
         self.pg_cloud_dict: Dict[str, Dict[str, Any]] = {} # Point Cloud 图像
         self.pg_const_dict: Dict[str, Dict[str, Any]] = {} # Constellation Diagram 图像
+        self.pg_DW_dict: Dict[str, Dict[str, Any]] = {} # Direct Wave 图像
         self.pg_amp_phase_dict: Dict[str, Dict[str, Any]] = {} # Amp-Phase 图像
         self.pg_waterfall_dict: Dict[str, Dict[str, Any]] = {} # Waterfall 图像
         self.pg_frequency_dict: Dict[str, Dict[str, Any]] = {} # frequency 图像
@@ -54,6 +56,7 @@ class PgDisplay:
 
         self._init_adc(adc_placeholders)
         self._init_waterfall(waterfall_placeholders)
+        self._init_DirectWave(DirectWave_placeholders)
         self._init_constellation_placeholders(constellation_placeholders)
         self._init_amp_phase(amp_phase_placeholders)
         self._init_fft1d(fft1d_placeholders)
@@ -91,6 +94,72 @@ class PgDisplay:
             h['I'].setData(t, I)
             h['Q'].setData(t, Q)
             h['pw'].setXRange(0, sample, padding=0.02)
+
+    def update_direct_wave_phase(self, fft_results: np.ndarray):
+        """
+        自动更新所有通道的直达波相位监控图（无需传入 frame_idx）
+
+        参数：
+            fft_results (np.ndarray): 1D-FFT 结果，shape = (4, n_chirp, n_sample)
+        """
+        # --- 初始化帧计数器（首次调用时创建）---
+        if not hasattr(self, '_direct_wave_frame_count'):
+            self._direct_wave_frame_count = 0
+
+        if fft_results.ndim != 3 or fft_results.shape[0] != 4:
+            raise ValueError("fft_results must be shape (4, n_chirp, n_sample)")
+
+        bin_index = 1  # 直达波所在距离单元
+
+        # --- 提取 bin=1 并对 chirp 求平均 → 复数信号 ---
+        S_bin1 = np.mean(fft_results[:, :, bin_index], axis=1)  # shape: (4,)
+        phases = np.angle(S_bin1)  # 提取相位
+
+        # --- 通道映射 ---
+        DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
+
+        # --- 更新每个通道 ---
+        for idx, key in enumerate(DirectWave_keys):
+            if key not in self.pg_plot_dict:
+                continue
+
+            data = self.pg_plot_dict[key]
+            phase = phases[idx]
+
+            # 1. 使用内部帧计数
+            frame_idx = self._direct_wave_frame_count
+
+            # 2. 更新数据缓冲区
+            data['frame_buffer'].append(frame_idx)
+            data['phase_buffer'].append(phase)
+
+            # 3. 同步参考相位（tx0rx0）
+            if key == 'DWtx0rx0':
+                data['ref_phase_buffer'] = data['phase_buffer'].copy()
+            else:
+                ref_data = self.pg_plot_dict['DWtx0rx0']
+                data['ref_phase_buffer'] = ref_data['phase_buffer'].copy()
+
+            # 4. 对齐长度
+            n = min(len(data['frame_buffer']), len(data['ref_phase_buffer']))
+            frames = data['frame_buffer'][-n:]
+            self_phase = data['phase_buffer'][-n:]
+            ref_phase = data['ref_phase_buffer'][-n:]
+
+            # 5. 更新曲线
+            data['phase'].setData(frames, self_phase)
+            data['phase_ref'].setData(frames, ref_phase)
+
+            # 6. 更新文本指标（Δϕ）
+            if n > 0:
+                delta_phase = self_phase[-1] - ref_phase[-1]
+                delta_phase = (delta_phase + np.pi) % (2 * np.pi) - np.pi
+                text = f"Δϕ = {np.degrees(delta_phase):+.2f}°"
+                data['metrics_text'].setText(text)
+                data['metrics_text'].setPos(frames[-1], np.mean(self_phase[-min(10, n):]) - 0.5)
+
+        # --- 帧计数自增（放在最后，确保所有通道用同一帧号）---
+        self._direct_wave_frame_count += 1
 
     def update_waterfall(self, iq: np.ndarray, chirp: int, sample: int, channelstr: str):
         """
@@ -893,6 +962,61 @@ class PgDisplay:
             }
             #pw.hide()  # 初始时隐藏，直到数据可用时再显示
 
+
+    def _init_DirectWave(self, placeholders: Dict[str, QWidget]):
+        """
+        为每个占位 QWidget 初始化“相位时序”单图：
+        - 单图：phase = unwrap(angle(z)) vs Frame Index
+        - 实线：当前通道相位
+        - 虚线：tx0rx0 参考通道相位
+        - 叠加文本框显示当前相位差 Δϕ
+        """
+        for key, container in placeholders.items():
+            layout = QVBoxLayout(container)
+
+            # --- 单图：Phase ---
+            pw_phase = pg.PlotWidget()
+            self._set_plot_style(pw_phase)
+            pw_phase.addLegend(offset=(10, 10))
+            pw_phase.setLabel('bottom', 'Frame Index')
+            pw_phase.setLabel('left', 'Phase (rad)')
+            pw_phase.setTitle(f"Phase {key}", color='k', size='12pt')
+            pw_phase.setYRange(-3.5, 3.5)  # 覆盖 -π ~ π 并留 margin
+            #pw_phase.setXRange(0, 100, padding=0.02)  # 初始范围，后续动态调整
+
+            # 当前通道相位（实线，蓝色）
+            curve_phase = pw_phase.plot(
+                pen=pg.mkPen('b', width=2, style=Qt.SolidLine),
+                name=f'{key} Phase'
+            )
+
+            # 参考通道 tx0rx0 相位（虚线，灰色）
+            phase_ref_curve = pw_phase.plot(
+                pen=pg.mkPen((120, 120, 120), width=1.5, style=Qt.DashLine),
+                name='Ref(tx0rx0) ---'
+            )
+
+            # 文本指标：显示当前帧相对于参考的相位差 Δϕ
+            metrics_text = pg.TextItem(
+                text="",
+                color=(20, 20, 20),
+                fill=pg.mkBrush(255, 255, 255, 200),
+                anchor=(1, 0)  # 右下角对齐
+            )
+            pw_phase.addItem(metrics_text)
+
+            # 布局 & 保存句柄
+            layout.addWidget(pw_phase)
+
+            self.pg_plot_dict[key] = {
+                'pw_phase': pw_phase,
+                'phase': curve_phase,
+                'phase_ref': phase_ref_curve,
+                'metrics_text': metrics_text,
+                'frame_buffer': [],
+                'phase_buffer': [],
+                'ref_phase_buffer': []  # 动态同步自 tx0rx0
+            }
 
     def _init_amp_phase(self, placeholders: Dict[str, QWidget]):
         """

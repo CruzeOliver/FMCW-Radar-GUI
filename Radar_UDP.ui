@@ -563,7 +563,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tab_ADC">
        <attribute name="title">
@@ -619,6 +619,25 @@
        <layout class="QHBoxLayout" name="horizontalLayout_8">
         <item>
          <widget class="QWidget" name="widget_Waterfall" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_DirectWave">
+       <attribute name="title">
+        <string>Direct wave</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_5">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_DWtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_DWtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_DWtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_DWtx1rx1" native="true"/>
         </item>
        </layout>
       </widget>

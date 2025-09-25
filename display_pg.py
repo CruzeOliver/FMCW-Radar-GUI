@@ -1253,11 +1253,6 @@ class PgDisplay:
             if 'MAG' in h:
                 h['MAG'].clear()
 
-        # 重置瀑布图数据缓存
-        for h in self.pg_waterfall_dict.values():
-            h['data_cache'] = np.empty((0, 0), dtype=np.float32)
-            h['img'].clear()
-
         # 重置 2DFFT 图像
         for iv in self.pg_img_dict.values():
             iv.clear()
@@ -1314,156 +1309,29 @@ class PgDisplay:
             if 'pw' in h:
                 h['pw'].setRange(xRange=(0, 1), yRange=(0, 1), padding=0.05)
 
+        DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
+        for key in DirectWave_keys:
+            if key not in self.pg_plot_dict:
+                continue
 
+            h = self.pg_plot_dict[key]
+            # 清空曲线数据
+            h['phase'].clear()
+            h['phase_ref'].clear()
 
+            # 清空文本标签
+            h['metrics_text'].setText("")
 
+            # 重置缓冲区
+            h['frame_buffer'].clear()
+            h['phase_buffer'].clear()
+            h['ref_phase_buffer'].clear()
 
-#============================ Stable 3D Waterfall ====================
-    #显示效果不佳，暂时弃用
-    '''
-    def init_3d_waterfall(self, waterfall_placeholders: Dict[str, QWidget]):
-        """
-        初始化3D瀑布图（稳定版）：
-        1. 完全移除GLColorMap和setHeightMask依赖
-        2. 用自定义颜色数组实现幅值着色
-        3. 确保Z轴数据形状严格匹配(len(x), len(y))
-
-        参数:
-        - waterfall_placeholders: 瀑布图占位符字典（key=标识，value=QWidget）
-        """
-        for key, placeholder in waterfall_placeholders.items():
-            glview = gl.GLViewWidget()
-            layout = QVBoxLayout(placeholder)
-            layout.addWidget(glview)
-            layout.setContentsMargins(0, 0, 0, 0)  # 清除边距避免视图裁剪
-
-            # 1. 创建X-Y网格（对应sample-chirp平面，z=0基准面）
-            grid = gl.GLGridItem(
-                size=pg.Vector(256, 32, 1),  # 网格大小：x=256(sample)，y=32(chirp)
-                color=(0.8, 0.8, 0.8, 0.5)   # 浅灰色半透明网格（不影响数据查看）
+            # 重置坐标轴范围
+            h['pw_phase'].setRange(
+                xRange=(0, 100),           # 与 MAX_HISTORY_LEN=100 匹配
+                yRange=(-3.5, 3.5),        # 覆盖 -π ~ π 并留 margin
+                padding=0.02
             )
-            grid.setSpacing(x=32, y=4, z=1)  # 网格间距：x每32个sample，y每4个chirp
-            grid.translate(0, 0, 0)
-            glview.addItem(grid)
-
-            # 2. 创建3D坐标轴（x=sample，y=chirp，z=幅值）
-            axis = gl.GLAxisItem()
-            init_max_mag = self.get_max_magnitude()
-            axis.setSize(x=256, y=32, z=init_max_mag * 0.8)  # 轴长匹配数据范围
-            axis.translate(-10, -2, 0)  # 偏移避免与数据重叠
-            glview.addItem(axis)
-
-            # 3. 初始化表面图（核心：用color数组实现着色，无版本依赖）
-            # 初始Z数据：(256,32) = (len(x), len(y))，确保形状匹配
-            init_z = np.zeros((256, 32))
-            # 初始颜色数组：与Z数据同形状，默认蓝色（低幅值）
-            init_color = np.full((256, 32, 4), (0.0, 0.0, 1.0, 1.0), dtype=np.float32)
-
-            surface_plot = gl.GLSurfacePlotItem(
-                x=np.arange(256),          # x轴：sample索引(0-255)
-                y=np.arange(32),           # y轴：chirp索引(0-31)
-                z=init_z,                  # Z轴：初始幅值（全0）
-                colors=init_color,         # 颜色数组（与Z同形状，(H,W,4)）
-                computeNormals=False       # 关闭法向量计算，提升性能（无视觉影响）
-            )
-            glview.addItem(surface_plot)
-
-            # 存储视图对象（包含初始幅值范围，用于后续颜色计算）
-            self.pg_waterfall_dict[key] = {
-                'glview': glview,
-                'surface': surface_plot,
-                'axis': axis,
-                'init_max_mag': init_max_mag  # 初始最大幅值（用于颜色归一化）
-            }
-
-            # 设置默认视角（确保能同时看到x/y/z轴，避免视角遮挡）
-            glview.setCameraPosition(
-                distance=500,    # 视角距离：确保完整显示数据
-                elevation=30,    # 仰角30°：看到x-y平面和z轴高度
-                azimuth=-45,     # 方位角-45°：同时看到x轴（右）和y轴（前）
-                pos=pg.Vector(128, 16, 0)  # 视角中心：数据中心点（避免偏移）
-            )
-
-    def update_3d_waterfall(self, iq: np.ndarray, channelstr: str):
-        """
-        更新3D瀑布图数据（稳定版）：
-        1. 计算幅值并转置，确保Z轴形状正确
-        2. 用自定义函数生成颜色数组（低幅值→蓝，高幅值→红）
-        3. 动态调整坐标轴z轴长度，适配当前幅值范围
-
-        参数：
-        - iq: np.ndarray, 形状(4, 32, 256)（通道, chirp, sample）
-        - channelstr: str, 天线通道（'tx0rx0'/'tx0rx1'/'tx1rx0'/'tx1rx1'）
-        """
-        # 1. 通道映射验证
-        channel_map = {'tx0rx0': 0, 'tx0rx1': 1, 'tx1rx0': 2, 'tx1rx1': 3}
-        if channelstr not in channel_map:
-            raise ValueError(f"无效通道：{channelstr}，可选通道：{list(channel_map.keys())}")
-
-        # 2. 检查瀑布图是否初始化
-        waterfall_obj = self.pg_waterfall_dict.get('Waterfall')
-        if not waterfall_obj:
-            raise RuntimeError("请先调用init_3d_waterfall初始化3D瀑布图")
-
-        # 3. 验证IQ数据维度（必须为(4,32,256)）
-        if iq.shape != (4, 32, 256):
-            raise ValueError(f"IQ数据维度错误：期望(4,32,256)，实际{iq.shape}")
-
-        # 4. 提取指定通道数据并计算幅值
-        channel_idx = channel_map[channelstr]
-        iq_data = iq[channel_idx, :, :]  # 原始形状：(32,256) = (chirp, sample)
-        magnitude_data = np.abs(iq_data) + 1e-6  # 计算幅值，加1e-6避免0值异常
-
-        # 5. 转置幅值数据：确保Z轴形状=(256,32) = (len(x), len(y))
-        z_data = magnitude_data.T  # 转置后形状：(256,32)，完全匹配GLSurfacePlotItem要求
-
-        # 6. 生成颜色数组（核心：无版本依赖，手动映射幅值到颜色）
-        # 步骤1：归一化幅值到0-1范围（让颜色过渡均匀）
-        current_min_mag = np.min(z_data)
-        current_max_mag = np.max(z_data)
-        # 处理极端情况（所有幅值相同），避免除零错误
-        if current_max_mag - current_min_mag < 1e-8:
-            norm_mag = np.zeros_like(z_data)
-        else:
-            norm_mag = (z_data - current_min_mag) / (current_max_mag - current_min_mag)
-
-        # 步骤2：颜色映射（低幅值→蓝(0,0,1)，中幅值→紫(0.5,0,0.5)，高幅值→红(1,0,0)）
-        # 红色通道：随幅值增大从0→1
-        red = norm_mag
-        # 蓝色通道：随幅值增大从1→0
-        blue = 1 - norm_mag
-        # 绿色通道：固定为0（避免颜色混杂）
-        green = np.zeros_like(norm_mag)
-        # 透明度：固定为1（不透明，确保可见）
-        alpha = np.ones_like(norm_mag)
-
-        # 合并为颜色数组（形状：(256,32,4)，与Z数据匹配）
-        color_array = np.stack([red, green, blue, alpha], axis=-1).astype(np.float32)
-
-        # 7. 更新表面图数据（Z轴+颜色数组）
-        waterfall_obj['surface'].setData(
-            x=np.arange(256),  # 保持x轴不变（sample索引）
-            y=np.arange(32),   # 保持y轴不变（chirp索引）
-            z=z_data,          # 更新Z轴幅值数据
-            colors=color_array # 更新颜色数组（与幅值同步）
-        )
-
-        # 8. 动态调整z轴长度（适配当前幅值范围，避免轴过长/过短）
-        z_axis_length = (current_max_mag - current_min_mag) * 0.8  # 取幅值范围的80%
-        waterfall_obj['axis'].setSize(
-            x=256,  # x轴长度固定（256个sample）
-            y=32,   # y轴长度固定（32个chirp）
-            z=z_axis_length if z_axis_length > 1e-8 else waterfall_obj['init_max_mag'] * 0.8
-        )
-        # 调整z轴起点到当前最小幅值（避免轴悬空）
-        waterfall_obj['axis'].translate(-10, -2, current_min_mag)
-
-    def get_max_magnitude(self):
-        """
-        辅助函数：返回IQ数据的最大幅值估计（必须根据实际数据校准！）
-        方法：运行一次程序后，查看update中的current_max_mag打印值，填入此处
-        """
-        # 示例：若实际最大幅值为5.2，则改为return 5.2
-        # 初始可先设为1.0，后续根据实际数据调整
-        return 1.0
-        '''
+        if hasattr(self, '_direct_wave_frame_count'):
+            del self._direct_wave_frame_count  # 下次 update 会重新初始化为 0

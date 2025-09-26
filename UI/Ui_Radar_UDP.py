@@ -242,6 +242,8 @@ class Ui_MainWindow(object):
         self.frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.frame.setObjectName("frame")
+        self.horizontalLayout_6 = QtWidgets.QHBoxLayout(self.frame)
+        self.horizontalLayout_6.setObjectName("horizontalLayout_6")
         self.gridLayout.addWidget(self.frame, 3, 2, 1, 1)
         self.tabWidget_Display = QtWidgets.QTabWidget(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)

@@ -84,7 +84,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle("Radar UDP Interface V3.2")
+        self.setWindowTitle("Radar UDP Interface V3.3")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
         pixmap = QPixmap(r'icon/CJLU_logo.png')
         if pixmap.isNull():
@@ -103,7 +103,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tx_sock   = None
         # mat文件存读相关变量
         self.save_filename = None
-        self.cache = []                        # 大缓存：暂存未保存的帧
+        self.cache = [] # 大缓存：暂存未保存的帧
         self.frame_all_data = None
         self.frame_data_list = []
 
@@ -121,7 +121,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         # display 控件相关变量
         self.last_display_time = time.time()# 记录最后显示的时间
-        self.display_interval = 0.6
+        self.display_interval = 0.5
 
         adc4_keys  = ['tx0rx0', 'tx0rx1', 'tx1rx0', 'tx1rx1']
         fft1d_keys = ['1DFFTtx0rx0', '1DFFTtx0rx1', '1DFFTtx1rx0', '1DFFTtx1rx1']
@@ -160,7 +160,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.setColumnCount(9)
         #header_labels = ['index','Angel','FFT', 'Macleod', 'CTZ', 'Macleod-CTZ']
         header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
-                         'CTZ', 'CTZ-fre', 'Macleod-CTZ', 'Macleod-CTZ-fre']
+                         'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
         self.tableWidget_distance.setEditTriggers(QTableWidget.NoEditTriggers)
         # QHeaderView.Stretch 模式会使所有列等宽拉伸，填充可用空间。
@@ -255,7 +255,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.last_display_time = current_time
         else:
             pass
-        #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
 
@@ -505,7 +504,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         #print(f"显示当前帧数据：{frame_data}")
         #print(f"帧数据形状：{frame_data.shape}")
-
         #self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
         selected_label = self.comboBox_MatFrom.currentText()
         if selected_label == "CPP":  # C++ 数据
@@ -521,7 +519,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame(frame_data_flat, int(chirp), int(sample),window=my_window)
+        iq = reorder_frame(frame_data_flat, chirp, sample,window=my_window)
         #compute_psl_isl_correct(iq)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)

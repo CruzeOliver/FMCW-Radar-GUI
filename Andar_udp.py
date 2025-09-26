@@ -99,17 +99,19 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.setCurrentIndex(1)
 
-        self.channelstr = "tx0rx0"
-        self.fft_results_1D = None
-        self.fft_results_2D = None
-        self.frame_all_data = None
-        self.frame_data_list = []
         self.rx_thread = None
         self.tx_sock   = None
+        # mat文件存读相关变量
         self.save_filename = None
+        self.cache = []                        # 大缓存：暂存未保存的帧
+        self.frame_all_data = None
+        self.frame_data_list = []
+
         self.current_index = 0
         self.generate_unique_filename()
 
+        self.fft_results_1D = None
+        self.fft_results_2D = None
         # 校准相关变量
         self.zij_vector_list = []
         self.warmup_count = 0
@@ -180,6 +182,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     # ---- 连接：开接收 + 备发送 ----
     def UDP_connect(self):
+        if self.checkBox_IsSave.isChecked():
+            self.bus.log.emit("[OK] 已启用原始数据保存功能")
         self.UDP_disconnect()  # 防止重复
         self.rx_thread = UdpRxThread(LISTEN_IP, LISTEN_PORT, self.bus)
         self.rx_thread.start()
@@ -191,9 +195,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         except Exception as e:
             self.bus.log.emit(f"[ERR] 创建发送 socket 失败: {e!r}")
             self.tx_sock = None
-        if self.checkBox_IsSave.isChecked():
-            self.bus.log.emit("[OK] 已启用原始数据保存功能")
-
 
 
     # ---- 断开：停线程 + 关socket ----
@@ -210,7 +211,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_Connect.setEnabled(True)
         self.pushButton_Disconnect.setEnabled(False)
         if self.checkBox_IsSave.isChecked():
-            self.bus.log.emit(f"[OK] 原始数据保存至{self.save_filename}，请在文件夹中查看")
+            self._save_buffer_to_mat()  # 保存剩余缓存
 
     # ---- 整帧到达回调函数 ----
     def on_frame_ready(self, frame: bytes, sample: int, chirp: int, txrx: int):
@@ -219,9 +220,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
          # 保存到 .mat 文件
         if self.checkBox_IsSave.isChecked():
-            if not self.save_to_mat(frame,sample,chirp,self.save_filename):
-                #self.bus.log.emit("[OK] 原始数据已保存到 raw_data.mat")
-                self.bus.log.emit("[ERR] 保存原始数据失败")
+            self.save_to_cache(frame,sample,chirp)
 
         current_time = time.time()
         if self.checkBox_HammingWindow.isChecked():
@@ -231,6 +230,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         iq = reorder_frame(frame, chirp, sample, window=my_window)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
+        self.display.update_direct_wave_phase(self.fft_results_1D)
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         if self.checkBox_CalibrationMode.isChecked():
@@ -394,7 +394,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
 
 # ================== 文件读取部分内容 ==================
-    def save_to_mat(self,frame_data, sample_number, chirp_number, filename= None):
+    def save_to_cache(self, frame_data, sample_number, chirp_number):
+        """
+        每次接收到新的一帧数据，将数据放入大缓存中
+        """
         try:
             # 获取当前时间戳，确保每一帧有唯一的变量名
             timestamp_with_ms = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
@@ -412,42 +415,58 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 转换为 int16 数组
             raw_iq = np.frombuffer(frame_data, dtype=np.int16)
 
-            # 假设每帧有 2048 个数据点，且每帧是 32 行，每行 2048 列
+            # 每帧有 2048 个数据点，且每帧是 32 行，每行 2048 列
             num_rows = 32
             num_cols = 2048
             total_frames = len(raw_iq) // (num_rows * num_cols)  # 计算帧数
 
-            # 检查帧数是否正确
-            #print(f"计算到帧数: {total_frames}, 预计每帧大小: {num_rows * num_cols} 字节")
-
             # 将数据重塑为每帧 32x2048 的 2D 数组
             reshaped_data = raw_iq[:total_frames * num_rows * num_cols].reshape((total_frames, num_rows, num_cols))
 
+            # 将当前帧的数据添加到缓存中
+            for i in range(total_frames):
+                frame_timestamp = f"frame_{timestamp_with_ms}_{i}"  # 为每一帧生成唯一的变量名
+                self.cache.append({frame_timestamp: reshaped_data[i]})
+
+            # 如果缓存达到最大大小，自动保存到文件
+            if len(self.cache) >= 100:
+                #print("缓存已满，开始保存数据...")
+                self._save_buffer_to_mat()
+
+            return True
+        except Exception as e:
+            print(f"保存数据时出错: {e}")
+            return False
+
+    def _save_buffer_to_mat(self):
+        """将缓存数据写入 .mat 文件"""
+        try:
             # 加载现有的 .mat 文件，如果文件不存在，则创建一个新文件
             try:
-                existing_data = scipy.io.loadmat(filename)
+                existing_data = scipy.io.loadmat(self.save_filename)
             except FileNotFoundError:
                 existing_data = {}
 
-            # 为当前帧生成唯一的变量名（时间戳 + 帧号）
-            frame_timestamp = f"frame_{timestamp_with_ms}"
+            # 将缓存中的所有数据添加到现有数据字典中
+            for frame_data in self.cache:
+                existing_data.update(frame_data)
 
-            # 将当前帧的数据添加到现有数据字典中
-            existing_data[frame_timestamp] = reshaped_data[0]
+            # 清空缓存
+            self.cache = []
 
+            # 保存到 .mat 文件
             with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=UserWarning)#消除对于“__header__”的警告
+                warnings.simplefilter("ignore", category=UserWarning)  # 消除对于“__header__”的警告
                 try:
                     from scipy.io.matlab.mio import MatWriteWarning
                     warnings.simplefilter("ignore", category=MatWriteWarning)
                 except ImportError:
                     pass
-                scipy.io.savemat(filename, existing_data)
-                #print(f"数据成功保存到 {filename}，包含 {len(existing_data)} 帧数据")
-            return True
+                scipy.io.savemat(self.save_filename, existing_data)
+                self.bus.log.emit(f"[OK] 数据成功保存到 {self.save_filename}，包含 {len(existing_data)} 帧数据")
+
         except Exception as e:
-            print(f"保存数据时出错: {e}")
-            return False
+            print(f"写入文件时出错: {e}")
 
     def ReadFile(self):
         """
@@ -487,7 +506,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         #print(f"显示当前帧数据：{frame_data}")
         #print(f"帧数据形状：{frame_data.shape}")
 
-        self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
+        #self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
         selected_label = self.comboBox_MatFrom.currentText()
         if selected_label == "CPP":  # C++ 数据
             frame_data = frame_data.T  # 转置数据，确保行优先
@@ -503,6 +522,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame(frame_data_flat, int(chirp), int(sample),window=my_window)
+        #compute_psl_isl_correct(iq)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)

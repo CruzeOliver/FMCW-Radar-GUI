@@ -1,14 +1,12 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 import sys, socket, threading
 import os
-from PyQt5.QtCore import QObject, pyqtSignal, QRectF, Qt
+from PyQt5.QtCore import QObject, pyqtSignal, Qt
 import time
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QStyle
 from PyQt5.QtGui import QPixmap, QIcon
 import numpy as np
-import pyqtgraph as pg
-from pyqtgraph import ImageView
 from data_processing import *
 import scipy.io
 import warnings
@@ -101,14 +99,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         self.rx_thread = None
         self.tx_sock   = None
+
         # mat文件存读相关变量
         self.save_filename = None
         self.cache = [] # 大缓存：暂存未保存的帧
         self.frame_all_data = None
         self.frame_data_list = []
-
         self.current_index = 0
-        self.generate_unique_filename()
 
         self.fft_results_1D = None
         self.fft_results_2D = None
@@ -167,11 +164,36 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget_distance.verticalHeader().setVisible(False)
 
+        self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
+        self.checkBox_IsSave.stateChanged.connect(self.SaveMatMessage)
 
-    def generate_unique_filename(self):
-        """生成一个唯一的 .mat 文件名并保存为实例属性"""
+    def generate_unique_time(self):
+        """生成一个唯一的time时间戳字符串"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-        self.save_filename = f"{timestamp}_raw_data_py.mat"
+        return timestamp
+
+    def CalibrationModeMessage(self):
+        if self.checkBox_CalibrationMode.isChecked():
+            QMessageBox.information(self,"校准模式","已启用校准模式。\n"
+                                    "请确保雷达正对自反靶进行校准。\n"
+                                    "前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。\n"
+                                    "校准结束后程序会自动断开连接，并关闭所有文件。")
+        else:
+            QMessageBox.information(self, "校准模式", "已关闭校准模式。")
+
+    def SaveMatMessage(self):
+        if self.checkBox_IsSave.isChecked():
+            self.cache = []  # 清空缓存
+            if not self.save_filename:
+                self.save_filename = f"{self.generate_unique_time()}_raw_data_py.mat"
+            self.bus.log.emit("[OK]已启用原始数据保存功能。\n"
+                              f"保存文件：{self.save_filename}\n"
+                              "每100帧数据自动保存一次，程序关闭时会保存剩余缓存。")
+        else:
+            self._save_buffer_to_mat()  # 保存剩余缓存
+            self.cache = []  # 清空缓存
+            self.save_filename = None
+            self.bus.log.emit("[OK]已关闭原始数据保存功能。")
 
     # ---- 重定向日志到 textEdit_log ----
     def _log(self, s: str):
@@ -182,8 +204,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     # ---- 连接：开接收 + 备发送 ----
     def UDP_connect(self):
-        if self.checkBox_IsSave.isChecked():
-            self.bus.log.emit("[OK] 已启用原始数据保存功能")
+        if self.checkBox_IsSave.isChecked() and not self.save_filename:
+            self.save_filename = f"{self.generate_unique_time()}_raw_data_py.mat"
         self.UDP_disconnect()  # 防止重复
         self.rx_thread = UdpRxThread(LISTEN_IP, LISTEN_PORT, self.bus)
         self.rx_thread.start()
@@ -195,7 +217,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         except Exception as e:
             self.bus.log.emit(f"[ERR] 创建发送 socket 失败: {e!r}")
             self.tx_sock = None
-
 
     # ---- 断开：停线程 + 关socket ----
     def UDP_disconnect(self):
@@ -285,43 +306,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     保存校准矩阵到NumPy或者npz
     加载校准矩阵到程序
     对实时数据进行校准
+    前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。
     """
-    def calibrate_on_demand2(self, zij_vector: np.ndarray):
-        """
-        它接收 zij_vector，在数量达到阈值时自动触发校准。
-
-        Args:
-            zij_vector: 单帧雷达数据的峰值复数向量。
-        """
-        if zij_vector.shape != (4,):
-            raise ValueError("zij_vector 必须是包含4个元素的向量。")
-
-        self.zij_vector_list.append(zij_vector)
-        current_count = len(self.zij_vector_list)
-
-        if current_count >= 20:  # 达到20个zij_vector后触发校准
-            # 1. 求平均
-            zij_vectors = np.array(self.zij_vector_list)
-            zij_vector_avg = np.mean(zij_vectors, axis=0)
-
-            # 2. 调用校准函数
-            alpha_matrix = amplitude_calibration(zij_vector_avg)
-            phi_matrix = phase_calibration(zij_vector_avg)
-
-            # 3. 保存
-            np.savez("radar_calibration_matrix.npz", alpha=alpha_matrix, phi=phi_matrix)
-
-            # 4. 清空列表，为下一次校准做准备
-            self.zij_vector_list.clear()
-            self.CloseFile()
-            self.UDP_disconnect()
-            QMessageBox.information(self, "校准完成", "已计算并保存校准矩阵到 radar_calibration_matrix.npz 文件。")
-
     def calibrate_on_demand(self, zij_vector: np.ndarray):
-        """
-        接收 zij_vector，在数量达到阈值时自动触发校准。
-        前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。
-        """
         if zij_vector.shape != (4,):
             raise ValueError("zij_vector 必须是包含4个元素的向量。")
 
@@ -362,7 +349,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             phi_matrix = phase_calibration(zij_vector_avg)
 
             # 3. 保存
-            np.savez("radar_calibration_matrix.npz", alpha=alpha_matrix, phi=phi_matrix)
+            filename = f"{self.generate_unique_time()} calibration_matrix"
+            np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
 
             # 4. 清空列表并重置状态，为下一次校准做准备
             self.zij_vector_list.clear()
@@ -372,7 +360,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 5. 断开连接并提示
             self.CloseFile()
             self.UDP_disconnect()
-            QMessageBox.information(self, "校准完成", "已计算并保存校准矩阵到 radar_calibration_matrix.npz 文件。")
+            QMessageBox.information(self, "校准完成", f"校准矩阵保存到：\n{filename}。")
 
     def LoadCalibratioMode(self):
         """
@@ -439,6 +427,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def _save_buffer_to_mat(self):
         """将缓存数据写入 .mat 文件"""
+        if not self.cache:
+            return  # 如果没有设置文件名或缓存为空，直接返回
         try:
             # 加载现有的 .mat 文件，如果文件不存在，则创建一个新文件
             try:

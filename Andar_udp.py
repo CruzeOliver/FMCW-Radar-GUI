@@ -165,13 +165,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.verticalHeader().setVisible(False)
 
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
-        self.checkBox_IsSave.stateChanged.connect(self.SaveMatMessage)
+        self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
 
     def generate_unique_time(self):
         """生成一个唯一的time时间戳字符串"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         return timestamp
 
+    # ---- checkbox Connect function ----
     def CalibrationModeMessage(self):
         if self.checkBox_CalibrationMode.isChecked():
             QMessageBox.information(self,"校准模式","已启用校准模式。\n"
@@ -181,7 +182,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             QMessageBox.information(self, "校准模式", "已关闭校准模式。")
 
-    def SaveMatMessage(self):
+    def SaveMatChange(self):
         if self.checkBox_IsSave.isChecked():
             self.cache = []  # 清空缓存
             if not self.save_filename:

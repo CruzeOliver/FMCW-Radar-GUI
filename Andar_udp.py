@@ -102,7 +102,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         # mat文件存读相关变量
         self.save_filename = None
-        self.cache = [] # 大缓存：暂存未保存的帧
+        self.buffer = [] # 大缓存：暂存未保存的帧
         self.frame_all_data = None
         self.frame_data_list = []
         self.current_index = 0
@@ -184,7 +184,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def SaveMatChange(self):
         if self.checkBox_IsSave.isChecked():
-            self.cache = []  # 清空缓存
+            self.buffer = []  # 清空缓存
             if not self.save_filename:
                 self.save_filename = f"{self.generate_unique_time()}_raw_data_py.mat"
             self.bus.log.emit("[OK]已启用原始数据保存功能。\n"
@@ -192,7 +192,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                               "每100帧数据自动保存一次，程序关闭时会保存剩余缓存。")
         else:
             self._save_buffer_to_mat()  # 保存剩余缓存
-            self.cache = []  # 清空缓存
+            self.buffer = []  # 清空缓存
             self.save_filename = None
             self.bus.log.emit("[OK]已关闭原始数据保存功能。")
 
@@ -414,10 +414,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 将当前帧的数据添加到缓存中
             for i in range(total_frames):
                 frame_timestamp = f"frame_{timestamp_with_ms}_{i}"  # 为每一帧生成唯一的变量名
-                self.cache.append({frame_timestamp: reshaped_data[i]})
+                self.buffer.append({frame_timestamp: reshaped_data[i]})
 
             # 如果缓存达到最大大小，自动保存到文件
-            if len(self.cache) >= 100:
+            if len(self.buffer) >= 100:
                 #print("缓存已满，开始保存数据...")
                 self._save_buffer_to_mat()
 
@@ -428,7 +428,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def _save_buffer_to_mat(self):
         """将缓存数据写入 .mat 文件"""
-        if not self.cache:
+        if not self.buffer:
             return  # 如果没有设置文件名或缓存为空，直接返回
         try:
             # 加载现有的 .mat 文件，如果文件不存在，则创建一个新文件
@@ -438,11 +438,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 existing_data = {}
 
             # 将缓存中的所有数据添加到现有数据字典中
-            for frame_data in self.cache:
+            for frame_data in self.buffer:
                 existing_data.update(frame_data)
 
             # 清空缓存
-            self.cache = []
+            self.buffer = []
 
             # 保存到 .mat 文件
             with warnings.catch_warnings():

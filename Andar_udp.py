@@ -93,20 +93,20 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.resize(1800, 1400)
         self.pushButton_Disconnect.setEnabled(False)
 
+        self.setup_distance_table()
         options = ["CPP", "Python"]
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.setCurrentIndex(1)
-
+        # UDP网络读取相关变量
         self.rx_thread = None
         self.tx_sock   = None
-
         # mat文件存读相关变量
         self.save_filename = None
         self.buffer = [] # 大缓存：暂存未保存的帧
         self.frame_all_data = None
         self.frame_data_list = []
         self.current_index = 0
-
+        # 实时处理相关变量
         self.fft_results_1D = None
         self.fft_results_2D = None
         # 校准相关变量
@@ -115,11 +115,27 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.warmup_avg = None
         self.alpha_matrix = None
         self.phi_matrix = None
-
-        # display 控件相关变量
+        # display 控件相关变量 GUI显示界面绑定实例化
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.5
+        self.setup_display_widgets()
+        self.display = PgDisplay(
+            adc_placeholders=self.adc_placeholders,
+            fft1d_placeholders=self.fft1d_placeholders,
+            fft2d_placeholders=self.fft2d_placeholders,
+            point_cloud_placeholders=self.point_cloud_placeholders,
+            DirectWave_placeholders=self.DirectWave_placeholders,
+            constellation_placeholders=self.constellation_placeholders,
+            amp_phase_placeholders=self.amp_phase_placeholders,
+            frequency_placeholders=self.frequency_placeholders
+        )
+        # 信号总线连接
+        self.bus = Bus()
+        self.bus.log.connect(self._log)
+        self.bus.frame_ready.connect(self.on_frame_ready)
 
+    def setup_display_widgets(self):
+        """初始化所有 widget 映射字典"""
         adc4_keys  = ['tx0rx0', 'tx0rx1', 'tx1rx0', 'tx1rx1']
         fft1d_keys = ['1DFFTtx0rx0', '1DFFTtx0rx1', '1DFFTtx1rx0', '1DFFTtx1rx1']
         fft2d_keys = ['2DFFTtx0rx0', '2DFFTtx0rx1', '2DFFTtx1rx0', '2DFFTtx1rx1']
@@ -129,31 +145,16 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         amp_phase_keys = ['APtx0rx0', 'APtx0rx1', 'APtx1rx0', 'APtx1rx1']
         frequency_keys = ['frequency']
 
-        adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
-        fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
-        fft2d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft2d_keys}
-        point_cloud_placeholders = {k: getattr(self, f'widget_{k}') for k in point_cloud_keys}
-        DirectWave_placeholders = {k: getattr(self, f'widget_{k}') for k in DirectWave_keys}
-        constellation_placeholders = {k: getattr(self, f'widget_{k}') for k in ConstellationDiagram_keys}
-        amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
-        frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
+        self.adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
+        self.fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
+        self.fft2d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft2d_keys}
+        self.point_cloud_placeholders = {k: getattr(self, f'widget_{k}') for k in point_cloud_keys}
+        self.DirectWave_placeholders = {k: getattr(self, f'widget_{k}') for k in DirectWave_keys}
+        self.constellation_placeholders = {k: getattr(self, f'widget_{k}') for k in ConstellationDiagram_keys}
+        self.amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
+        self.frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
 
-        #GUI显示界面绑定实例化
-        self.display = PgDisplay(
-            adc_placeholders   = adc_placeholders,
-            fft1d_placeholders = fft1d_placeholders,
-            fft2d_placeholders = fft2d_placeholders,
-            point_cloud_placeholders = point_cloud_placeholders,
-            DirectWave_placeholders = DirectWave_placeholders,
-            constellation_placeholders = constellation_placeholders,
-            amp_phase_placeholders = amp_phase_placeholders,
-            frequency_placeholders = frequency_placeholders
-        )
-
-        self.bus = Bus()
-        self.bus.log.connect(self._log)
-        self.bus.frame_ready.connect(self.on_frame_ready)
-
+    def setup_distance_table(self):
         self.tableWidget_distance.setColumnCount(9)
         #header_labels = ['index','Angel','FFT', 'Macleod', 'CTZ', 'Macleod-CTZ']
         header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
@@ -191,7 +192,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                               f"保存文件：{self.save_filename}\n"
                               "每100帧数据自动保存一次，程序关闭时会保存剩余缓存。")
         else:
-            self._save_buffer_to_mat()  # 保存剩余缓存
+            self.save_buffer_to_mat()  # 保存剩余缓存
             self.buffer = []  # 清空缓存
             self.save_filename = None
             self.bus.log.emit("[OK]已关闭原始数据保存功能。")
@@ -233,7 +234,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_Connect.setEnabled(True)
         self.pushButton_Disconnect.setEnabled(False)
         if self.checkBox_IsSave.isChecked():
-            self._save_buffer_to_mat()  # 保存剩余缓存
+            self.save_buffer_to_mat()  # 保存剩余缓存
 
     # ---- 整帧到达回调函数 ----
     def on_frame_ready(self, frame: bytes, sample: int, chirp: int, txrx: int):
@@ -242,7 +243,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
          # 保存到 .mat 文件
         if self.checkBox_IsSave.isChecked():
-            self.save_to_cache(frame,sample,chirp)
+            self.save_to_buffer(frame,sample,chirp)
 
         current_time = time.time()
         if self.checkBox_HammingWindow.isChecked():
@@ -382,7 +383,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
 
 # ================== 文件读取部分内容 ==================
-    def save_to_cache(self, frame_data, sample_number, chirp_number):
+    def save_to_buffer(self, frame_data, sample_number, chirp_number):
         """
         每次接收到新的一帧数据，将数据放入大缓存中
         """
@@ -419,14 +420,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 如果缓存达到最大大小，自动保存到文件
             if len(self.buffer) >= 100:
                 #print("缓存已满，开始保存数据...")
-                self._save_buffer_to_mat()
+                self.save_buffer_to_mat()
 
             return True
         except Exception as e:
             print(f"保存数据时出错: {e}")
             return False
 
-    def _save_buffer_to_mat(self):
+    def save_buffer_to_mat(self):
         """将缓存数据写入 .mat 文件"""
         if not self.buffer:
             return  # 如果没有设置文件名或缓存为空，直接返回

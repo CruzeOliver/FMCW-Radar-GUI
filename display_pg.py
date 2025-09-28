@@ -92,7 +92,7 @@ class PgDisplay:
             h['Q'].setData(t, Q)
             h['pw'].setXRange(0, sample, padding=0.02)
 
-    def update_direct_wave_phase(self, fft_results: np.ndarray):
+    def update_direct_wave_phase(self, fft_results: np.ndarray,index):
         """
         自动更新所有通道的直达波相位监控图（无需传入 frame_idx）
         通过限制历史数据长度和强制设置 X 轴范围来实现平滑滚动。
@@ -111,7 +111,7 @@ class PgDisplay:
         if fft_results.ndim != 3 or fft_results.shape[0] != 4:
             raise ValueError("fft_results must be shape (4, n_chirp, n_sample)")
 
-        bin_index = 0  # 直达波所在距离单元
+        bin_index = index  # 直达波所在距离单元
 
         # --- 提取 bin=1 并对 chirp 求平均 → 复数信号 ---
         S_bin1 = np.mean(fft_results[:, :, bin_index], axis=1)  # shape: (4,)

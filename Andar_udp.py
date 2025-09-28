@@ -253,7 +253,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         iq = reorder_frame(frame, chirp, sample, window=my_window)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
-        self.display.update_direct_wave_phase(self.fft_results_1D)
+        self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         if self.checkBox_CalibrationMode.isChecked():
@@ -536,7 +536,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             calibrated_iq = iq
 
         self.display.update_adc4(calibrated_iq, chirp, sample)
-        self.display.update_direct_wave_phase(self.fft_results_1D)
+        self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
         self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)
         self.display.update_amp_phase(calibrated_iq, chirp=0, decimate=1, unwrap_phase=False)
         self.display.update_fft1d(self.fft_results_1D, sample)

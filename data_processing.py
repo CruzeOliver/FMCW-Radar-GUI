@@ -6,11 +6,11 @@ from scipy.signal import czt, get_window
 #============ 雷达参数配置 =================
 
 C = 3e8  # 光速，单位 m/s
-CenterFrequency = 60  # 中心频率，单位 GHz 77
+CenterFrequency = 77  # 中心频率，单位 GHz 77
 wavelength = C / (CenterFrequency * 1e9)  # 波长，单位 m
 ADC_SAMPLE_RATE = 7.14  # 采样率，单位 MHz
 FM = 3000  # 调频带宽，单位 MHz
-CHIRP_T0 = 94  # 微秒98
+CHIRP_T0 = 94  # 微秒94
 CHIRP_T1 = 14  # 微秒
 CHIRP_T2 = 0   # 微秒
 CHIRP_PERIOD = CHIRP_T0 + CHIRP_T1 + CHIRP_T2  # Chirp周期，单位微秒
@@ -870,3 +870,67 @@ def compute_psl_isl_correct(iq_data, chirp_idx=0, antenna_idx=None, window=None,
 
     return psl_dB, isl_dB
 
+def calculate_compensation_omegas(dphi_hw_deg_array: list[float]) -> list[float]:
+    """
+    使用实际 chirp 时间计算补偿量
+    """
+    # 实际 chirp 持续时间（基于采样点数和采样率）
+    T_actual = 256 / (7.14e6)  # ≈ 35.85 μs
+    print(f"实际 chirp 时间: {T_actual*1e6:.2f} μs")
+
+    omegas = []
+    for dphi_deg in dphi_hw_deg_array:
+        dphi_rad = np.deg2rad(dphi_deg)
+        # omega = Δφ / T_actual
+        omega_i = dphi_rad / T_actual
+        omegas.append(omega_i)
+    return omegas
+
+def digital_if_calibration(iq_data: np.ndarray, omega_compensations: list[float]) -> np.ndarray:
+    """
+    校准函数
+    """
+    FS_HZ = 7.14e6  # 7.14 MHz
+    n_ant, n_chirps, n_samples = iq_data.shape  # 应为 (n_ant, 32, 256)
+
+    t = np.arange(n_samples) / FS_HZ  # t ∈ [0, 35.85μs]
+    compensation_matrix = np.ones((n_ant, n_chirps, n_samples), dtype=np.complex64)
+
+    for i in range(n_ant):
+        omega_i = omega_compensations[i]
+        phase_ramp = omega_i * t
+        # 抵消硬件引入的相位斜坡
+        comp_term = np.exp(-1j * phase_ramp)
+        compensation_matrix[i, :, :] = comp_term
+
+    calibrated_data = iq_data * compensation_matrix
+    return calibrated_data
+
+def auto_calibrate_digital_if(iq_data: np.ndarray, direct_bin: int = 1) -> np.ndarray:
+    """
+    自动校准：基于直达波相位演化
+    """
+    fs = 7.14e6
+    n_samples = 256
+    t = np.arange(n_samples) / fs
+
+    calibrated = iq_data.copy()
+
+    for i in [1, 2, 3]:  # 校准非参考通道
+        # 提取通道 i 和参考通道 0 的时域相位
+        phase_i = np.angle(iq_data[i, 0, :])  # 第一个 chirp
+        phase_ref = np.angle(iq_data[0, 0, :])
+
+        delta_phase = phase_i - phase_ref
+        delta_phase_unwrapped = np.unwrap(delta_phase)
+
+        # 拟合斜率
+        slope, _ = np.polyfit(t, delta_phase_unwrapped, 1)  # 一次多项式拟合
+
+        # 构建补偿
+        compensation = np.exp(-1j * slope * t)
+
+        # 应用到所有 chirps
+        calibrated[i] *= compensation
+
+    return calibrated

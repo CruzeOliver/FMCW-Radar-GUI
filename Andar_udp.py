@@ -17,7 +17,7 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+#QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
@@ -251,6 +251,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame(frame, chirp, sample, window=my_window)
+
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
         self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
@@ -512,6 +513,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame(frame_data_flat, chirp, sample,window=my_window)
+        DPHI_HW_DEGS = [0, 165, 0.5, 165.5] # 硬件内置的相位偏移
+        #OMEGA_I_COMPENSATIONS = calculate_compensation_omegas(DPHI_HW_DEGS)
+        if self.checkBox_directwave.isChecked():
+            #iq = digital_if_calibration(iq, OMEGA_I_COMPENSATIONS)
+            iq = auto_calibrate_digital_if(iq)
         #compute_psl_isl_correct(iq)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)

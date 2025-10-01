@@ -17,7 +17,7 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-#QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
@@ -92,6 +92,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.CJLU_logo_label.setScaledContents(True)
         self.resize(1800, 1400)
         self.pushButton_Disconnect.setEnabled(False)
+        self.load_styles()
 
         self.setup_distance_table()
         options = ["CPP", "Python"]
@@ -172,6 +173,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """生成一个唯一的time时间戳字符串"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         return timestamp
+
+    def load_styles(self):
+        try:
+            with open('style.qss', 'r', encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+        except Exception as e:
+            print(f"加载样式失败: {e}")
 
     # ---- checkbox Connect function ----
     def CalibrationModeMessage(self):

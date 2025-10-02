@@ -17,7 +17,7 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+#QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
@@ -82,7 +82,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle("Radar UDP Interface V3.3")
+        self.setWindowTitle("Radar UDP Interface V4.0")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
         pixmap = QPixmap(r'icon/CJLU_logo.png')
         if pixmap.isNull():

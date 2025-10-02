@@ -1,34 +1,159 @@
-/* 设置整个窗口的背景颜色 */
+/*
+ * 整体 UI 优化：更柔和的背景和一致的字体。
+ * 调整了字体大小，使其更现代。
+ */
 QWidget {
-    background-color: #f0f0f0;  /* 浅灰色背景 */
-    font-family: "Microsoft YaHei", SimSun;
-    font-size: 9pt;
+    /* 窗口背景：使用接近纯白的浅灰色，更专业和“透气” */
+    background-color: #f7f9fa;
+    font-family: "Microsoft YaHei", "Segoe UI", SimSun; /* 增加备用字体 */
+    font-size: 8pt; /* 稍稍增大字体，提高可读性 */
+    color: #333333; /* 默认文字颜色改为深灰色，更柔和 */
 }
 
-/* 设置所有 QPushButton 的样式 */
+/*
+ * QPushButton 优化：
+ * - 引入更专业的蓝色。
+ * - 添加微妙的阴影 (box-shadow 的 QSS 等价实现)。
+ * - 更精细的圆角。
+ */
 QPushButton {
-    background-color: #4A90E2;        /* 蓝色背景 */
-    color: white;                     /* 白色文字 */
-    border: none;                     /* 无边框 */
-    padding: 8px 16px;                /* 内边距 */
-    border-radius: 6px;               /* 圆角 */
-}
-
-/* 鼠标悬停时的效果 */
-QPushButton:hover {
-    background-color: #357ABD;
-}
-
-/* 按下时的效果 */
-QPushButton:pressed {
-    background-color: #2C5AA0;
-}
-
-/* 如果你也有 QToolButton，也可以一并设置 */
-QToolButton {
-    background-color: #4A90E2;
+    /* 按钮基础色：更具科技感和专业度的蓝色 */
+    background-color: #5AA7F9;
     color: white;
+    border: 1px solid #5AA7F9; /* 保持边框与背景色一致，增加清晰度 */
+    padding: 6px 14px; /* 增加内边距，使按钮更饱满 */
+    border-radius: 6px; /* 略微增大的圆角，更现代 */
+    /* 模拟阴影：在 Windows/macOS 风格中，通常使用 border/margin 的组合，
+       但 QSS 更推荐使用 QWidget::hover/pressed 的微小变化或直接的背景色对比 */
+}
+
+/* 鼠标悬停时的效果：稍微变亮，提供精致的反馈 */
+QPushButton:hover {
+    background-color: #0069d9; /* 略微变深的蓝色 */
+    border-color: #0062cc;
+}
+
+/* 按下时的效果：深度沉浸感，常用于“激活”或“按下”状态 */
+QPushButton:pressed {
+    background-color: #0056b3; /* 明显变深的蓝色 */
+    border-color: #004d9c;
+    padding-top: 11px; /* 模拟“下沉”效果 */
+    padding-bottom: 9px;
+}
+
+/* 禁用状态（重要：提升专业感） */
+QPushButton:disabled {
+    background-color: #cccccc; /* 浅灰色背景 */
+    color: #666666; /* 深灰色文字 */
+    border: 1px solid #cccccc;
+}
+
+/* QToolButton 优化：通常用于工具栏，更注重图标和方形/圆形，移除文字内边距 */
+QToolButton {
+    background-color: transparent; /* 通常工具按钮背景是透明的 */
+    color: #007bff; /* 图标或文字使用主题色 */
     border: none;
     padding: 8px;
-    border-radius: 6px;
+    border-radius: 4px; /* 小圆角 */
+}
+
+QToolButton:hover {
+    background-color: #e6f0ff; /* 悬停时显示柔和的背景色 */
+    color: #0056b3;
+}
+
+QToolButton:pressed {
+    background-color: #cce0ff;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 1. 输入框 (QLineEdit) 样式 */
+/* ---------------------------------------------------------------------- */
+QLineEdit {
+    /* 背景色：浅白，与窗口背景有区分 */
+    background-color: white;
+    /* 边框：柔和的浅灰色边框 */
+    border: 1px solid #ced4da;
+    /* 圆角：保持与按钮一致的圆角设计风格 */
+    border-radius: 4px; /* 输入框通常比按钮圆角小一点 */
+    /* 内边距：提供输入空间 */
+    padding: 6px 8px;
+    /* 字体颜色 */
+    color: #333333;
+}
+
+/* 获得焦点时：边框高亮为主题色，提高用户感知 */
+QLineEdit:focus {
+    border-color: #007bff;
+    /* 可选：增加一个微弱的外部“光晕”效果 */
+    /* qproperty-focusPolicy: 'StrongFocus'; 这不是 QSS 属性，但常用于此目的 */
+}
+
+/* ---------------------------------------------------------------------- */
+/* 2. 复选框 (QCheckBox) 样式 */
+/* ---------------------------------------------------------------------- */
+QCheckBox {
+    color: #333333;
+}
+
+/* 复选框指示器 (未选中状态) */
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #ced4da; /* 灰色边框 */
+    border-radius: 3px;
+    background-color: white;
+}
+
+/* 鼠标悬停在复选框上 */
+QCheckBox::indicator:hover {
+    border-color: #007bff; /* 悬停时边框变蓝 */
+}
+
+/* 复选框指示器 (选中状态) */
+QCheckBox::indicator:checked {
+    background-color: #007bff; /* 蓝色背景 */
+    border-color: #007bff;
+
+}
+
+/* ---------------------------------------------------------------------- */
+/* 3. 下拉框 (QComboBox) 样式 */
+/* ---------------------------------------------------------------------- */
+QComboBox {
+    background-color: white;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 5px 10px;
+    color: #333333;
+}
+
+/* 获得焦点时：边框高亮为主题色 */
+QComboBox:focus {
+    border-color: #007bff;
+}
+
+/* 下拉箭头按钮样式 */
+QComboBox::drop-down {
+
+    width: 20px;
+    border-left-width: 1px;
+    border-left-color: #ced4da;
+    border-left-style: solid; /* 分隔线 */
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+/* 下拉箭头图标样式 */
+QComboBox::down-arrow {
+
+    width: 12px;
+    height: 12px;
+}
+
+/* 列表视图（下拉菜单本身） */
+QComboBox QAbstractItemView {
+    border: 1px solid #007bff; /* 列表边框使用主题色 */
+    outline: none; /* 移除焦点虚线 */
+    padding: 4px 0;
 }

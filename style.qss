@@ -134,15 +134,15 @@ QComboBox:focus {
 }
 
 /* 下拉箭头按钮样式 */
-QComboBox::drop-down {
+/* QComboBox::drop-down {
 
     width: 20px;
     border-left-width: 1px;
     border-left-color: #ced4da;
-    border-left-style: solid; /* 分隔线 */
+    border-left-style: solid; 
     border-top-right-radius: 3px;
     border-bottom-right-radius: 3px;
-}
+} */
 
 /* 下拉箭头图标样式 */
 QComboBox::down-arrow {

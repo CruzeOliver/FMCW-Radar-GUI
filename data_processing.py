@@ -870,67 +870,100 @@ def compute_psl_isl_correct(iq_data, chirp_idx=0, antenna_idx=None, window=None,
 
     return psl_dB, isl_dB
 
-def calculate_compensation_omegas(dphi_hw_deg_array: list[float]) -> list[float]:
-    """
-    使用实际 chirp 时间计算补偿量
-    """
-    # 实际 chirp 持续时间（基于采样点数和采样率）
-    T_actual = 256 / (7.14e6)  # ≈ 35.85 μs
-    print(f"实际 chirp 时间: {T_actual*1e6:.2f} μs")
+def extract_dphi_hw(iq_data, ref_channel=0):
+    """提取4通道相对于基准的相位差（bin=1，多chirp平均）"""
+    n_ant, n_chirps, n_samples = iq_data.shape
+    phase_list = []
+    for chirp in range(n_chirps):
+        fft_data = np.fft.fft(iq_data[:, chirp, :], axis=1)
+        phase_rad = np.angle(fft_data[:, 1])  # bin=1的相位（弧度）
+        phase_list.append(phase_rad)
+    phase_mean_rad = np.mean(phase_list, axis=0)  # 多chirp平均
+    dphi_rad = phase_mean_rad - phase_mean_rad[ref_channel]  # 相对基准的相位差
+    return np.rad2deg(dphi_rad).tolist()  # 转为度
 
-    omegas = []
-    for dphi_deg in dphi_hw_deg_array:
-        dphi_rad = np.deg2rad(dphi_deg)
-        # omega = Δφ / T_actual
-        omega_i = dphi_rad / T_actual
-        omegas.append(omega_i)
+def calculate_geo_dphi_correction():
+    """修正几何相位差（通道2和3对调，关键修正！）"""
+    lambda_carrier = 3e8 / 77e9  # 3.9mm
+    d = lambda_carrier / 2  # 间距=λ/2
+    # 正确的几何相位差（基于通道定义）：
+    # 通道0（TX0RX0）：0°
+    # 通道1（TX0RX1）：接收间距d → 180°（λ/2对应180°）
+    # 通道2（TX1RX1）：发射间距d + 接收间距d = 2d → 360°→0°
+    # 通道3（TX1RX0）：发射间距d → 180°
+    return [0, 180, 0, 180]  # 修正后：通道2=0°，通道3=180°
+
+def calculate_compensation_omegas(dphi_meas_deg):
+    """计算频率偏移补偿量（修正通道对应关系）"""
+    T_actual = 256 / 7.14e6  # 35.85μs
+    dphi_geo = calculate_geo_dphi_correction()
+    # 硬件相位差 = 测量值 - 几何相位差
+    dphi_hw_deg = [m - g for m, g in zip(dphi_meas_deg, dphi_geo)]
+    # 计算ω = Δφ(rad) / T
+    omegas = [np.deg2rad(dphi) / T_actual for dphi in dphi_hw_deg]
     return omegas
 
-def digital_if_calibration(iq_data: np.ndarray, omega_compensations: list[float]) -> np.ndarray:
-    """
-    校准函数
-    """
-    FS_HZ = 7.14e6  # 7.14 MHz
-    n_ant, n_chirps, n_samples = iq_data.shape  # 应为 (n_ant, 32, 256)
-
-    t = np.arange(n_samples) / FS_HZ  # t ∈ [0, 35.85μs]
-    compensation_matrix = np.ones((n_ant, n_chirps, n_samples), dtype=np.complex64)
-
+def digital_if_calibration(iq_data, omegas):
+    """频率平移校准（核心逻辑不变）"""
+    FS_HZ = 7.14e6
+    n_ant, n_chirps, n_samples = iq_data.shape
+    t = np.arange(n_samples) / FS_HZ  # 时间序列
+    compensation = np.ones((n_ant, n_chirps, n_samples), dtype=np.complex64)
     for i in range(n_ant):
-        omega_i = omega_compensations[i]
-        phase_ramp = omega_i * t
-        # 抵消硬件引入的相位斜坡
-        comp_term = np.exp(-1j * phase_ramp)
-        compensation_matrix[i, :, :] = comp_term
+        compensation[i, :, :] = np.exp(-1j * omegas[i] * t)  # 频率平移补偿
+    return iq_data * compensation
 
-    calibrated_data = iq_data * compensation_matrix
-    return calibrated_data
-
-def auto_calibrate_digital_if(iq_data: np.ndarray, direct_bin: int = 1) -> np.ndarray:
+def learn_calibration_parameters(iq_data_no_target):
     """
-    自动校准：基于直达波相位演化
+    输入：无目标时采集的一次数据 (4, n_chirps, 256)
+    输出：保存每个通道的补偿斜率 omega (rad/s)
     """
-    fs = 7.14e6
-    n_samples = 256
-    t = np.arange(n_samples) / fs
+    FS_HZ = 7.14e6
+    N_SAMPLES = 256
+    t = np.arange(N_SAMPLES) / FS_HZ
 
-    calibrated = iq_data.copy()
+    calibration_omegas = []  # 存储每个通道的 omega
 
-    for i in [1, 2, 3]:  # 校准非参考通道
-        # 提取通道 i 和参考通道 0 的时域相位
-        phase_i = np.angle(iq_data[i, 0, :])  # 第一个 chirp
-        phase_ref = np.angle(iq_data[0, 0, :])
+    print("开始学习校准参数（无目标）...")
 
-        delta_phase = phase_i - phase_ref
-        delta_phase_unwrapped = np.unwrap(delta_phase)
+    for ch in [0, 1, 2, 3]:
+        if ch == 0:
+            # 参考通道，omega = 0
+            calibration_omegas.append(0.0)
+            continue
 
-        # 拟合斜率
-        slope, _ = np.polyfit(t, delta_phase_unwrapped, 1)  # 一次多项式拟合
+        z_ref = iq_data_no_target[0, 0, :]  # Ch0 第一个 chirp
+        z_ch = iq_data_no_target[ch, 0, :]  # 当前通道
 
-        # 构建补偿
-        compensation = np.exp(-1j * slope * t)
+        phase_diff = np.angle(z_ch * np.conj(z_ref))
+        phase_diff_unwrapped = np.unwrap(phase_diff)
 
-        # 应用到所有 chirps
-        calibrated[i] *= compensation
+        slope, _ = np.polyfit(t, phase_diff_unwrapped, 1)  # rad/s
+        calibration_omegas.append(slope)
 
-    return calibrated
+        freq_shift = slope / (2 * np.pi)
+        print(f"通道 {ch}: 学得 omega = {slope:.2f} rad/s ({freq_shift:+.1f} Hz)")
+
+    # 保存为全局参数（可存入文件或全局变量）
+    return np.array(calibration_omegas)  # shape: (4,)
+
+def apply_calibration_online(iq_data, calibration_omegas):
+    """
+    输入：
+        iq_data: 实时采集的数据 (4, n_chirps, 256)
+        calibration_omegas: 之前学得的斜率数组 (4,)
+    输出：
+        校准后的数据
+    """
+    FS_HZ = 7.14e6
+    N_SAMPLES = 256
+    t = np.arange(N_SAMPLES) / FS_HZ
+
+    calibrated_iq = iq_data.copy()
+
+    for ch in [1, 2, 3]:
+        omega = calibration_omegas[ch]
+        compensation = np.exp(-1j * omega * t)  # (256,)
+        calibrated_iq[ch] *= compensation  # 广播到所有 chirp
+
+    return calibrated_iq

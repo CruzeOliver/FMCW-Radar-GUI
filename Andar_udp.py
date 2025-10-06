@@ -17,7 +17,7 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-#QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
@@ -156,9 +156,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
 
     def setup_distance_table(self):
-        self.tableWidget_distance.setColumnCount(9)
-        #header_labels = ['index','Angel','FFT', 'Macleod', 'CTZ', 'Macleod-CTZ']
-        header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
+        self.tableWidget_distance.setColumnCount(10)
+        header_labels = ['index','Angel','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
                          'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
         self.tableWidget_distance.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -294,7 +293,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
         #             f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
         #             f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
-        row_data = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+        row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
         row_count = self.tableWidget_distance.rowCount()
@@ -521,11 +520,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame(frame_data_flat, chirp, sample,window=my_window)
-        DPHI_HW_DEGS = [0, 165, 0.5, 165.5] # 硬件内置的相位偏移
-        #OMEGA_I_COMPENSATIONS = calculate_compensation_omegas(DPHI_HW_DEGS)
-        if self.checkBox_directwave.isChecked():
-            #iq = digital_if_calibration(iq, OMEGA_I_COMPENSATIONS)
-            iq = auto_calibrate_digital_if(iq)
+        # omegas = learn_calibration_parameters(iq)
+        # #omegas =[0,95314.90114739, -257064.23834787,-27406.54915671]
+        # print(f"学习到的补偿频率：{omegas}")
+        # if self.checkBox_directwave.isChecked():
+        #     #直接应用已学得的参数
+        #     iq = apply_calibration_online(iq, omegas)
+
         #compute_psl_isl_correct(iq)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
@@ -564,7 +565,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
         #             f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
         #             f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
-        row_data = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+        row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
 

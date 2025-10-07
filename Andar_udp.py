@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,
 from PyQt5.QtGui import QPixmap, QIcon
 import numpy as np
 from data_processing import *
+import motorController
 import scipy.io
 import warnings
 from udp_handler import *
@@ -134,6 +135,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.bus = Bus()
         self.bus.log.connect(self._log)
         self.bus.frame_ready.connect(self.on_frame_ready)
+        # 转台电机实例化
+        self.CH375motor = motorController.MotorController()
 
     def setup_display_widgets(self):
         """初始化所有 widget 映射字典"""
@@ -630,6 +633,26 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "保存失败", f"保存文件时出错：\n{e}")
+
+
+# ================== 电机控制相关内容 ==================
+    def MotorConnect(self):
+        if self.CH375motor.usb_initialize() and self.CH375motor.motor_initialize():
+            self.bus.log.emit("[OK]电机连接成功")
+        else:
+            self.bus.log.emit("[ERR]电机连接失败，请检查连接")
+
+    def MotorDisconnect(self):
+        if self.CH375motor.motor_stop():
+            self.bus.log.emit("[OK]电机断开成功")
+
+    def AngelMove(self):
+        angel_str = self.lineEdit_MoveAngel.text()
+        try:
+            angel = float(angel_str)
+            self.CH375motor.motor_start(angel)
+        except ValueError as ve:
+            self.bus.log.emit(f"[ERR]无效的角度输入: {ve}")
 
     def closeEvent(self, e):
         self.UDP_disconnect()

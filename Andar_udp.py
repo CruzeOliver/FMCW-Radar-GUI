@@ -85,17 +85,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.setupUi(self)
         self.setWindowTitle("Radar UDP Interface V4.0")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
-        pixmap = QPixmap(r'icon/CJLU_logo.png')
-        if pixmap.isNull():
-            QMessageBox.warning(self, "图像加载失败", "无法加载图像，请检查文件路径是否正确。")
-        else:
-            self.CJLU_logo_label.setPixmap(pixmap)
-            self.CJLU_logo_label.setScaledContents(True)
-        self.resize(1800, 1400)
-        self.pushButton_Disconnect.setEnabled(False)
-        self.load_styles()
 
+        #self.resize(1800, 1400)
+        self.load_styles()
         self.setup_distance_table()
+        self.setupInitialUIState()
+
         options = ["CPP", "Python"]
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.setCurrentIndex(1)
@@ -170,6 +165,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
+
+    def setupInitialUIState(self):
+        self.pushButton_Disconnect.setEnabled(False)
+        self.pushButton_MotorDisconnect.setEnabled(False)
+        self.pushButton_MoveAngel.setEnabled(False)
+        self.pushButton_Next.setEnabled(False)
+        self.pushButton_SaveTable.setEnabled(False)
+        self.pushButton_CloseFile.setEnabled(False)
+
 
     def generate_unique_time(self):
         """生成一个唯一的time时间戳字符串"""
@@ -479,6 +483,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if file_dialog.exec_():
             file_path = file_dialog.selectedFiles()[0]
             self.read_mat_file(file_path)
+            self.pushButton_Next.setEnabled(True)
+            self.pushButton_SaveTable.setEnabled(True)
+            self.pushButton_CloseFile.setEnabled(True)
+
 
     def read_mat_file(self, filename):
         """
@@ -638,6 +646,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 # ================== 电机控制相关内容 ==================
     def MotorConnect(self):
         if self.CH375motor.usb_initialize() and self.CH375motor.motor_initialize():
+            self.pushButton_MotorDisconnect.setEnabled(True)
+            self.pushButton_MoveAngel.setEnabled(True)
             self.bus.log.emit("[OK]电机连接成功")
         else:
             self.bus.log.emit("[ERR]电机连接失败，请检查连接")
@@ -652,7 +662,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             angel = float(angel_str)
             self.CH375motor.motor_start(angel)
         except ValueError as ve:
-            self.bus.log.emit(f"[ERR]无效的角度输入: {ve}")
+            self.bus.log.emit(f"[ERR]无效的角度输入")
 
     def closeEvent(self, e):
         self.UDP_disconnect()

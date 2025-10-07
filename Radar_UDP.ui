@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>943</width>
-    <height>777</height>
+    <width>979</width>
+    <height>735</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,6 +24,27 @@
     <enum>Qt::LeftToRight</enum>
    </property>
    <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <widget class="Line" name="line_3">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="2">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
     <item row="0" column="2">
      <widget class="QGroupBox" name="groupBox_Config">
       <property name="sizePolicy">
@@ -409,7 +430,7 @@
              <widget class="QPushButton" name="pushButton_ReadFile">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>0</horstretch>
+                <horstretch>5</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
@@ -419,7 +440,14 @@
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="comboBox_MatFrom"/>
+             <widget class="QComboBox" name="comboBox_MatFrom">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>5</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
             </item>
            </layout>
           </item>
@@ -431,18 +459,22 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_CloseFile">
-            <property name="text">
-             <string>CloseFile/Init</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton">
-            <property name="text">
-             <string>Save Table</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_15">
+            <item>
+             <widget class="QPushButton" name="pushButton_CloseFile">
+              <property name="text">
+               <string>Close Init</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_SaveTable">
+              <property name="text">
+               <string>Save Table</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
@@ -463,11 +495,44 @@
       </layout>
      </widget>
     </item>
-    <item row="1" column="0">
-     <widget class="Line" name="line">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
+    <item row="3" column="0">
+     <widget class="QTabWidget" name="tabWidget_Message">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>2</horstretch>
+        <verstretch>3</verstretch>
+       </sizepolicy>
       </property>
+      <property name="font">
+       <font>
+        <family>Times New Roman</family>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_log">
+       <attribute name="title">
+        <string>LogMessage</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QTextEdit" name="textEdit_log"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_Distance">
+       <attribute name="title">
+        <string>Distance / Angel</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QTableWidget" name="tableWidget_distance"/>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="0" column="0">
@@ -665,62 +730,76 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="1">
-     <widget class="Line" name="line_3">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="Line" name="line_2">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0">
-     <widget class="QTabWidget" name="tabWidget_Message">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>2</horstretch>
-        <verstretch>3</verstretch>
-       </sizepolicy>
-      </property>
+    <item row="3" column="2">
+     <widget class="QGroupBox" name="groupBox_motor">
       <property name="font">
        <font>
         <family>Times New Roman</family>
+        <pointsize>9</pointsize>
         <weight>75</weight>
         <bold>true</bold>
        </font>
       </property>
-      <property name="currentIndex">
-       <number>0</number>
+      <property name="title">
+       <string>Motor Control</string>
       </property>
-      <widget class="QWidget" name="tab_log">
-       <attribute name="title">
-        <string>LogMessage</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QTextEdit" name="textEdit_log"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_Distance">
-       <attribute name="title">
-        <string>Distance / Angel</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QTableWidget" name="tableWidget_distance"/>
-        </item>
-       </layout>
-      </widget>
+      <layout class="QVBoxLayout" name="verticalLayout_4">
+       <item>
+        <widget class="QPushButton" name="pushButton_MotorConnect">
+         <property name="text">
+          <string>Motor Connect</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_MotorDisconnect">
+         <property name="text">
+          <string>Motor Stop</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_12">
+         <item>
+          <widget class="QLineEdit" name="lineEdit_MoveAngel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>5</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_MoveAngel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>5</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Move</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="verticalSpacer_4">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
      </widget>
-    </item>
-    <item row="3" column="2">
-     <widget class="QWidget" name="widget" native="true"/>
     </item>
    </layout>
    <zorder>tabWidget_Display</zorder>
@@ -730,14 +809,14 @@
    <zorder>line_2</zorder>
    <zorder>groupBox_Config</zorder>
    <zorder>tabWidget_Message</zorder>
-   <zorder>widget</zorder>
+   <zorder>groupBox_motor</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>943</width>
+     <width>979</width>
      <height>22</height>
     </rect>
    </property>
@@ -753,8 +832,8 @@
    <slot>UDP_connect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1035</x>
-     <y>220</y>
+     <x>949</x>
+     <y>171</y>
     </hint>
     <hint type="destinationlabel">
      <x>927</x>
@@ -769,8 +848,8 @@
    <slot>UDP_disconnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1035</x>
-     <y>249</y>
+     <x>949</x>
+     <y>200</y>
     </hint>
     <hint type="destinationlabel">
      <x>928</x>
@@ -785,8 +864,8 @@
    <slot>ReadFile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>961</x>
-     <y>607</y>
+     <x>867</x>
+     <y>459</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -801,8 +880,8 @@
    <slot>ShowNextFrame()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1035</x>
-     <y>637</y>
+     <x>949</x>
+     <y>489</y>
     </hint>
     <hint type="destinationlabel">
      <x>805</x>
@@ -817,8 +896,8 @@
    <slot>CloseFile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1035</x>
-     <y>666</y>
+     <x>867</x>
+     <y>519</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -827,14 +906,14 @@
    </hints>
   </connection>
   <connection>
-   <sender>pushButton</sender>
+   <sender>pushButton_SaveTable</sender>
    <signal>clicked()</signal>
    <receiver>MainWindow</receiver>
    <slot>SaveTable()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1035</x>
-     <y>695</y>
+     <x>948</x>
+     <y>519</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -849,12 +928,60 @@
    <slot>LoadCalibratioMode()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>938</x>
-     <y>367</y>
+     <x>867</x>
+     <y>385</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
      <y>408</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_MotorConnect</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>MotorConnect()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>850</x>
+     <y>597</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>972</x>
+     <y>595</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_MotorDisconnect</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>MotorDisconnect()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>888</x>
+     <y>627</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>972</x>
+     <y>628</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_MoveAngel</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>AngelMove()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>925</x>
+     <y>653</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>954</x>
+     <y>712</y>
     </hint>
    </hints>
   </connection>
@@ -867,5 +994,8 @@
   <slot>CloseFile()</slot>
   <slot>SaveTable()</slot>
   <slot>LoadCalibratioMode()</slot>
+  <slot>MotorConnect()</slot>
+  <slot>MotorDisconnect()</slot>
+  <slot>AngelMove()</slot>
  </slots>
 </ui>

@@ -17,12 +17,12 @@ QWidget {
  * - 更精细的圆角。
  */
 QPushButton {
-    /* 按钮基础色：更具科技感和专业度的蓝色 */
-    background-color: #5AA7F9;
+    /* 按钮基础色：更具科技感和专业度的蓝色#5AA7F9 */
+    background-color: #007bff;
     color: white;
-    border: 1px solid #5AA7F9; /* 保持边框与背景色一致，增加清晰度 */
-    padding: 6px 14px; /* 增加内边距，使按钮更饱满 */
-    border-radius: 6px; /* 略微增大的圆角，更现代 */
+    border: 2px solid #007bff; /* 保持边框与背景色一致，增加清晰度 */
+    padding: 3px 5px; /* 增加内边距，使按钮更饱满 */
+    border-radius: 4px; /* 略微增大的圆角，更现代 */
     /* 模拟阴影：在 Windows/macOS 风格中，通常使用 border/margin 的组合，
        但 QSS 更推荐使用 QWidget::hover/pressed 的微小变化或直接的背景色对比 */
 }
@@ -139,7 +139,7 @@ QComboBox:focus {
     width: 20px;
     border-left-width: 1px;
     border-left-color: #ced4da;
-    border-left-style: solid; 
+    border-left-style: solid;
     border-top-right-radius: 3px;
     border-bottom-right-radius: 3px;
 } */

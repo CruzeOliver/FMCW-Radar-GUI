@@ -16,11 +16,6 @@ from display_pg import PgDisplay
 import csv
 
 
-# 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
-# os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-# QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
-# QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-
 # ================== Qt 信号总线 ==================
 class Bus(QObject):
     log         = Signal(str)     # log日志重定向

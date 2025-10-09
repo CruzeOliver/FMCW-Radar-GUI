@@ -11,6 +11,13 @@ QWidget {
 }
 
 /*
+QPushButton#pushButton_Connect {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+*/
+
+/*
  * QPushButton 优化：
  * - 引入更专业的蓝色。
  * - 添加微妙的阴影 (box-shadow 的 QSS 等价实现)。
@@ -66,6 +73,32 @@ QToolButton:pressed {
     background-color: #cce0ff;
 }
 
+/***
+QPushButton {
+    background-color: #07C160;
+    color: white;
+
+    border: 1px solid #07C160;
+
+    padding: 6px 14px;
+    border-radius: 6px;
+}
+
+QPushButton:hover {
+    background-color: #06AD56;
+    border-color: #06AD56;
+}
+
+QPushButton:pressed {
+    background-color: #04994A;
+    border-color: #04994A;
+    padding-top: 7px;
+    padding-bottom: 5px;
+}
+***/
+
+
+
 /* ---------------------------------------------------------------------- */
 /* 1. 输入框 (QLineEdit) 样式 */
 /* ---------------------------------------------------------------------- */
@@ -77,7 +110,7 @@ QLineEdit {
     /* 圆角：保持与按钮一致的圆角设计风格 */
     border-radius: 4px; /* 输入框通常比按钮圆角小一点 */
     /* 内边距：提供输入空间 */
-    padding: 6px 8px;
+    padding: 3px 5px;
     /* 字体颜色 */
     color: #333333;
 }
@@ -124,7 +157,7 @@ QComboBox {
     background-color: white;
     border: 1px solid #ced4da;
     border-radius: 4px;
-    padding: 5px 10px;
+    padding: 3px 5px;
     color: #333333;
 }
 

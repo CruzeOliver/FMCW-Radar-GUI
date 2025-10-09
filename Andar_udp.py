@@ -78,14 +78,13 @@ class UdpRxThread(threading.Thread):
         except Exception:
             pass
 
-# ================== 主窗口 ==================
+# ================== 主窗口初始化 ==================
 class MyMainForm(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
         self.setWindowTitle("Radar UDP Interface V4.0")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
-
         #self.resize(1800, 1400)
         self.load_styles()
         self.setup_distance_table()
@@ -130,9 +129,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.bus = Bus()
         self.bus.log.connect(self._log)
         self.bus.frame_ready.connect(self.on_frame_ready)
+
         # 转台电机实例化
         self.CH375motor = motorController.MotorController()
 
+# ================== 初始化相关函数 ==================
     def setup_display_widgets(self):
         """初始化所有 widget 映射字典"""
         adc4_keys  = ['tx0rx0', 'tx0rx1', 'tx1rx0', 'tx1rx1']
@@ -167,6 +168,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
 
     def setupInitialUIState(self):
+        self.tabWidget_Display.setMovable(True)
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
         self.pushButton_MoveAngel.setEnabled(False)
@@ -174,13 +176,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_SaveTable.setEnabled(False)
         self.pushButton_CloseFile.setEnabled(False)
 
-
     def generate_unique_time(self):
         """生成一个唯一的time时间戳字符串"""
         timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         return timestamp
 
     def load_styles(self):
+        """加载UI样式"""
         try:
             with open('style.qss', 'r', encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
@@ -189,6 +191,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     # ---- checkbox Connect function ----
     def CalibrationModeMessage(self):
+        """校准模式启用提示"""
         if self.checkBox_CalibrationMode.isChecked():
             QMessageBox.information(self,"校准模式","已启用校准模式。\n"
                                     "请确保雷达正对自反靶进行校准。\n"
@@ -198,6 +201,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             QMessageBox.information(self, "校准模式", "已关闭校准模式。")
 
     def SaveMatChange(self):
+        """启用或关闭保存 .mat 文件功能"""
         if self.checkBox_IsSave.isChecked():
             self.buffer = []  # 清空缓存
             if not self.save_filename:
@@ -217,6 +221,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.textEdit_log.append(s)
         except Exception:
             print(s)
+
+
+# ================== 初始化相关函数 ==================
 
     # ---- 连接：开接收 + 备发送 ----
     def UDP_connect(self):

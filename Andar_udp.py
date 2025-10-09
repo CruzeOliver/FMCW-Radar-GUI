@@ -1,11 +1,11 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 import sys, socket, threading
 import os
-from PyQt5.QtCore import QObject, pyqtSignal, Qt
+from PySide6.QtCore import QObject, Signal, Qt
 import time
-from PyQt5 import QtCore
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QStyle
-from PyQt5.QtGui import QPixmap, QIcon
+from PySide6 import QtCore
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QStyle
+from PySide6.QtGui import QPixmap, QIcon
 import numpy as np
 from data_processing import *
 import motorController
@@ -18,13 +18,13 @@ import csv
 
 # 加入DPI缩放，可以让GUI，在不同分辨率显示器之间跨越 ，不变形
 # os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+# QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)  # 启用 DPI 缩放
+# QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
 # ================== Qt 信号总线 ==================
 class Bus(QObject):
-    log         = pyqtSignal(str)     # log日志重定向
-    frame_ready = pyqtSignal(bytes, int, int, int)# frame, sample_point, chirp_num, txrx
+    log         = Signal(str)     # log日志重定向
+    frame_ready = Signal(bytes, int, int, int)# frame, sample_point, chirp_num, txrx
 
 
 # ================== 接收线程（Python threading + socket） ==================
@@ -392,7 +392,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         file_dialog = QFileDialog(self, "Load Calibration Mode File")
         file_dialog.setNameFilter("Mode files (*.npz)")
-        if file_dialog.exec_():
+        if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
             cal_data = np.load(file_path)
             self.bus.log.emit(f"已加载校准模型文件：{file_path}")
@@ -487,7 +487,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         file_dialog = QFileDialog(self, "Open MAT File")
         file_dialog.setNameFilter("MAT files (*.mat)")
-        if file_dialog.exec_():
+        if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
             self.read_mat_file(file_path)
             self.pushButton_Next.setEnabled(True)
@@ -679,4 +679,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MyMainForm()
     win.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

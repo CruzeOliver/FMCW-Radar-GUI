@@ -1,13 +1,13 @@
 from typing import Dict, Any, List
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QGraphicsPathItem
-from PyQt5.QtCore import QRectF, Qt
-from PyQt5 import QtCore
+from PySide6.QtWidgets import QVBoxLayout, QWidget, QGraphicsPathItem
+from PySide6.QtCore import QRectF, Qt
+from PySide6 import QtCore
 import pyqtgraph as pg
 from pyqtgraph import ImageView
 from pyqtgraph.opengl import GLViewWidget, GLMeshItem, GLAxisItem
 import pyqtgraph.opengl as gl
 import numpy as np
-from PyQt5.QtGui import QPainterPath, QPen, QColor, QTransform, QFont
+from PySide6.QtGui import QPainterPath, QPen, QColor, QTransform, QFont
 from collections import deque
 from pyqtgraph.opengl.items.GLAxisItem import GLAxisItem
 class PgDisplay:

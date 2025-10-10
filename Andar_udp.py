@@ -4,7 +4,7 @@ import os
 from PySide6.QtCore import QObject, Signal, Qt
 import time
 from PySide6 import QtCore
-from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import numpy as np
 from data_processing import *
@@ -177,7 +177,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_MoveAngel.setEnabled(False)
         self.pushButton_Next.setEnabled(False)
         self.pushButton_SaveTable.setEnabled(False)
-        self.pushButton_CloseFile.setEnabled(False)
+        #self.pushButton_CloseFile.setEnabled(False)
 
     def generate_unique_time(self):
         """生成一个唯一的time时间戳字符串"""
@@ -236,21 +236,30 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.tabifyDockWidget(first_dock, dock)
             first_dock.raise_()  # 默认显示第一个
 
+
         # === 4. 创建 控制面板 Dock ===
-        dock_control = QDockWidget("dock_control", self)
+        dock_control = QDockWidget("dock_Config", self)
         dock_control.setObjectName("dock_control")  # 方便调试
         dock_control.setWidget(self.groupBox_Config)
         dock_control.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock_control)
+        dock_control.setFeatures(QDockWidget.NoDockWidgetFeatures)
 
         # === 5. 创建 消息与数据 Dock ===
-        dock_message = QDockWidget("dock_message", self)
+        dock_message = QDockWidget("dock_Message", self)
         dock_message.setObjectName("dock_message")
         dock_message.setWidget(self.tabWidget_Message)
-        dock_message.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
+        dock_message.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock_message)
 
-        # 将消息与数据 Dock 放在底部
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock_message)
+        # === 6. 创建 额外功能 Dock（隐藏）为了让整个GUI四分布局===
+        dock_extra = QDockWidget("dock_copyR", self)
+        dock_extra.setObjectName("dock_extra")
+        dock_extra.setWidget(self.widget_extra)
+        dock_extra.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock_extra.setTitleBarWidget(QWidget())
+        self.splitDockWidget(dock_control, dock_extra, Qt.Orientation.Vertical)
+        #dock_extra.hide()
 
         # === 6. 添加到“视图”菜单 ===
         view_menu = self.menuBar().addMenu("View")
@@ -259,10 +268,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         view_menu.addAction(dock_control.toggleViewAction())
         view_menu.addAction(dock_message.toggleViewAction())
 
-        dock_control.setMaximumWidth(300)
-        dock_control.setMinimumWidth(200)
-        dock_control.setMaximumHeight(700)
-        dock_control.setMinimumHeight(300)
+        dock_extra.setMinimumHeight(200)
+        dock_extra.setMaximumWidth(300)
+        dock_message.setMinimumHeight(200)
+        #dock_control.setMaximumWidth(300)
 
     def create_menus(self):
         """
@@ -597,7 +606,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.read_mat_file(file_path)
             self.pushButton_Next.setEnabled(True)
             self.pushButton_SaveTable.setEnabled(True)
-            self.pushButton_CloseFile.setEnabled(True)
+            #self.pushButton_CloseFile.setEnabled(True)
 
 
     def read_mat_file(self, filename):

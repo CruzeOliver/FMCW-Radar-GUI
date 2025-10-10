@@ -701,7 +701,7 @@
      </widget>
     </item>
     <item row="2" column="2">
-     <widget class="QWidget" name="widget" native="true">
+     <widget class="QWidget" name="widget_extra" native="true">
       <layout class="QVBoxLayout" name="verticalLayout_6"/>
      </widget>
     </item>
@@ -713,7 +713,7 @@
    <zorder>line_2</zorder>
    <zorder>groupBox_Config</zorder>
    <zorder>tabWidget_Message</zorder>
-   <zorder>widget</zorder>
+   <zorder>widget_extra</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

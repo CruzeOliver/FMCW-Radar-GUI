@@ -899,8 +899,8 @@ class PgDisplay:
 
     def _set_plot_style(self, pw: pg.PlotWidget):
         pw.setBackground('w')
-        pw.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
-        pw.getAxis('left').setPen(pg.mkPen(color='k', width=1))
+        pw.getAxis('bottom').setPen(pg.mkPen(color='k', width=1.2))
+        pw.getAxis('left').setPen(pg.mkPen(color='k', width=1.2))
         pw.getAxis('bottom').setTextPen('k')
         pw.getAxis('left').setTextPen('k')
         pw.showGrid(x=True, y=True, alpha=0.3)

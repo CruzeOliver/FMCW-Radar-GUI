@@ -550,12 +550,12 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.line_3, 2, 1, 1, 1)
 
-        self.widget = QWidget(self.centralwidget)
-        self.widget.setObjectName(u"widget")
-        self.verticalLayout_6 = QVBoxLayout(self.widget)
+        self.widget_extra = QWidget(self.centralwidget)
+        self.widget_extra.setObjectName(u"widget_extra")
+        self.verticalLayout_6 = QVBoxLayout(self.widget_extra)
         self.verticalLayout_6.setObjectName(u"verticalLayout_6")
 
-        self.gridLayout.addWidget(self.widget, 2, 2, 1, 1)
+        self.gridLayout.addWidget(self.widget_extra, 2, 2, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
         self.tabWidget_Display.raise_()
@@ -565,7 +565,7 @@ class Ui_MainWindow(object):
         self.line_2.raise_()
         self.groupBox_Config.raise_()
         self.tabWidget_Message.raise_()
-        self.widget.raise_()
+        self.widget_extra.raise_()
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
         self.menubar.setGeometry(QRect(0, 0, 1024, 22))

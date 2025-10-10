@@ -4,8 +4,8 @@ import os
 from PySide6.QtCore import QObject, Signal, Qt
 import time
 from PySide6 import QtCore
-from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QStyle
-from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget
+from PySide6.QtGui import QPixmap, QIcon, QAction
 import numpy as np
 from data_processing import *
 import motorController
@@ -78,7 +78,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle("Radar UDP Interface V4.0")
+        self.setWindowTitle("Radar UDP Interface ")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
         #self.resize(1800, 1400)
         self.load_styles()
@@ -124,6 +124,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.bus = Bus()
         self.bus.log.connect(self._log)
         self.bus.frame_ready.connect(self.on_frame_ready)
+
+        # 创建菜单
+        self.create_menus()
+        self.upgrade_to_dockwidgets()
+        index = self.tabWidget_Display.indexOf(self.tab_Placeholder)
+        if index != -1:
+            self.tabWidget_Display.setTabVisible(index, False)
+
 
         # 转台电机实例化
         self.CH375motor = motorController.MotorController()
@@ -183,6 +191,108 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.setStyleSheet(f.read())
         except Exception as e:
             print(f"加载样式失败: {e}")
+
+
+    def upgrade_to_dockwidgets(self):
+        """
+        升级 UI：将 tabWidget_Display 的 index=0 作为 centralWidget，
+        其余 Tabs 转为左侧堆叠 Dock，配置和消息区转为右侧 Dock。
+        """
+        tab_widget = self.tabWidget_Display
+        tab_data = []
+
+        # === 1. 提取所有 Tab 内容 ===
+        for i in range(tab_widget.count()):
+            widget = tab_widget.widget(i)
+            title = tab_widget.tabText(i)
+            tab_data.append((widget, title))
+
+        # 清空并隐藏原 TabWidget
+        while tab_widget.count() > 0:
+            tab_widget.removeTab(0)
+        tab_widget.hide()
+
+        # === 2. 设置索引 0 的 Tab 为 centralWidget ===
+        if len(tab_data) > 0:
+            central_widget, _ = tab_data[0]
+            self.setCentralWidget(central_widget)
+
+        # === 3. 将其他 Display Tabs 转为 Dock 并堆叠在左侧 ===
+        docks_display = []
+        for i, (widget, title) in enumerate(tab_data):
+            if i == 0:  # 跳过主视图
+                continue
+            dock = QDockWidget(title, self)
+            dock.setWidget(widget)
+            dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+            docks_display.append(dock)
+            setattr(self, f'dock_display_{i}', dock)
+
+        # 堆叠左侧 Dock（从第一个开始）
+        if docks_display:
+            first_dock = docks_display[0]
+            self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, first_dock)
+            for dock in docks_display[1:]:
+                self.tabifyDockWidget(first_dock, dock)
+            first_dock.raise_()  # 默认显示第一个
+
+        # === 4. 创建 控制面板 Dock ===
+        dock_control = QDockWidget("dock_control", self)
+        dock_control.setObjectName("dock_control")  # 方便调试
+        dock_control.setWidget(self.groupBox_Config)
+        dock_control.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock_control)
+
+        # === 5. 创建 消息与数据 Dock ===
+        dock_message = QDockWidget("dock_message", self)
+        dock_message.setObjectName("dock_message")
+        dock_message.setWidget(self.tabWidget_Message)
+        dock_message.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea)
+
+        # 将消息与数据 Dock 放在底部
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock_message)
+
+        # === 6. 添加到“视图”菜单 ===
+        view_menu = self.menuBar().addMenu("View")
+        for dock in docks_display:
+            view_menu.addAction(dock.toggleViewAction())
+        view_menu.addAction(dock_control.toggleViewAction())
+        view_menu.addAction(dock_message.toggleViewAction())
+
+        dock_control.setMaximumWidth(300)
+        dock_control.setMinimumWidth(200)
+        dock_control.setMaximumHeight(700)
+        dock_control.setMinimumHeight(300)
+
+    def create_menus(self):
+        """
+        创建完整的菜单栏：File, Edit, View, Help
+        About 对话框直接在此函数中实现。
+        """
+        menu_bar = self.menuBar()
+        # === File 菜单 ===
+        file_menu = menu_bar.addMenu("File")
+        exit_action = QAction("Exit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        # === Edit 菜单（预留功能，灰色显示）===
+        edit_menu = menu_bar.addMenu("Edit")
+        # === Help 菜单 ===
+        help_menu = menu_bar.addMenu("Help")
+        about_action = QAction("About", self)
+        about_action.triggered.connect(
+            lambda: QMessageBox.about(
+                self,
+                "About",
+                "<h3>FMCW Radar GUI</h3>"
+                "<p><b>Version:</b> 4.0.1</p>"
+                "<p>a Python-based desktop application for real-time acquisition , " \
+                "processing, and visualization of FMCW radar data</p>"
+                "<p>© China Jiliang University.</p>"
+            )
+        )
+        help_menu.addAction(about_action)
 
     # ---- checkbox Connect function ----
     def CalibrationModeMessage(self):

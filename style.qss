@@ -190,3 +190,87 @@ QComboBox QAbstractItemView {
     outline: none; /* 移除焦点虚线 */
     padding: 4px 0;
 }
+
+
+/* ---------------------------------------------------------------------- */
+/* 4. 菜单栏 (QMenuBar) 和 菜单 (QMenu) 样式 */
+/* ---------------------------------------------------------------------- */
+
+/* 菜单栏整体样式 */
+QMenuBar {
+    background-color: #f7f9fa; /* 与主窗口背景一致 */
+    color: #333333; /* 文字颜色 */
+    border-bottom: 1px solid #e0e0e0; /* 底部加一条细线，增强层次 */
+}
+
+/* 菜单栏中的菜单项（如 "File", "View"） */
+QMenuBar::item {
+    background-color: transparent;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+/* 菜单栏项 - 悬停状态 */
+QMenuBar::item:hover {
+    background-color: #e6f0ff; /* 柔和蓝色悬停背景 */
+    color: #0056b3; /* 深蓝色文字 */
+}
+
+/* 菜单栏项 - 激活/按下状态（点击后展开） */
+QMenuBar::item:selected {
+    background-color: #007bff; /* 主题蓝色 */
+    color: white;
+}
+
+/* ---------------------------------------------------------------------- */
+
+/* 下拉菜单 (QMenu) 整体样式 */
+QMenu {
+    background-color: white; /* 白色菜单背景 */
+    color: #333333; /* 默认文字颜色 */
+    border: 1px solid #ced4da; /* 浅灰色边框，与输入框一致 */
+    border-radius: 6px; /* 圆角菜单，更现代 */
+    padding: 4px 0;
+    margin: 2px; /* 菜单与屏幕边缘或父菜单的间距 */
+}
+
+/* 菜单项（QMenu 中的 QAction） */
+QMenu::item {
+    padding: 6px 24px 6px 32px; /* 左右留出空间，图标和快捷键位置 */
+    border-radius: 4px;
+}
+
+/* 菜单项 - 普通状态 */
+QMenu::item {
+    background-color: transparent;
+}
+
+/* 菜单项 - 悬停状态 */
+QMenu::item:hover {
+    background-color: #007bff; /* 主题蓝色背景 */
+    color: white; /* 白色文字 */
+}
+
+/* 菜单项 - 禁用状态 */
+QMenu::item:disabled {
+    color: #999999;
+    background-color: transparent;
+}
+
+/* 菜单项 - 选中/已勾选状态（如复选菜单项） */
+QMenu::item:checked {
+    font-weight: bold;
+    color: #007bff;
+}
+
+/* ---------------------------------------------------------------------- */
+
+/* 菜单分隔符 (separator) */
+QMenu::separator {
+    height: 1px;
+    background: #e0e0e0; /* 柔和灰色分隔线 */
+    margin: 4px 0;
+}
+
+/* ---------------------------------------------------------------------- */
+

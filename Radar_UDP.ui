@@ -103,6 +103,11 @@
       <property name="currentIndex">
        <number>0</number>
       </property>
+      <widget class="QWidget" name="tab_Placeholder">
+       <attribute name="title">
+        <string>Placeholder</string>
+       </attribute>
+      </widget>
       <widget class="QWidget" name="tab_ADC">
        <attribute name="title">
         <string>ADC</string>

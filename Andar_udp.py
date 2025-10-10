@@ -1,27 +1,23 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
-import sys, socket, threading
-import os
-from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler
-import time
-from PySide6 import QtCore
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
+from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler
 from PySide6.QtGui import QPixmap, QIcon, QAction
-from PySide6.QtCore import QLoggingCategory
+import sys, socket, threading
+#import scipy.io
 import numpy as np
+import warnings
+import time
+import csv
+import os
 from data_processing import *
 import motorController
-import scipy.io
-import warnings
 from udp_handler import *
 from display_pg import PgDisplay
-import csv
-
 
 # ================== Qt 信号总线 ==================
 class Bus(QObject):
     log         = Signal(str)     # log日志重定向
     frame_ready = Signal(bytes, int, int, int)# frame, sample_point, chirp_num, txrx
-
 
 # ================== 接收线程（Python threading + socket） ==================
 class UdpRxThread(threading.Thread):
@@ -121,6 +117,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             amp_phase_placeholders=self.amp_phase_placeholders,
             frequency_placeholders=self.frequency_placeholders
         )
+        # 转台电机实例化
+        self.CH375motor = motorController.MotorController()
         # 信号总线连接
         self.bus = Bus()
         self.bus.log.connect(self._log)
@@ -132,10 +130,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         index = self.tabWidget_Display.indexOf(self.tab_Placeholder)
         if index != -1:
             self.tabWidget_Display.setTabVisible(index, False)
-
-
-        # 转台电机实例化
-        self.CH375motor = motorController.MotorController()
 
 # ================== 初始化相关函数 ==================
     def setup_display_widgets(self):
@@ -168,10 +162,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget_distance.verticalHeader().setVisible(False)
 
+    def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
 
-    def setupInitialUIState(self):
         self.tabWidget_Display.setMovable(True)
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
@@ -192,7 +186,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.setStyleSheet(f.read())
         except Exception as e:
             print(f"加载样式失败: {e}")
-
 
     def upgrade_to_dockwidgets(self):
         """
@@ -237,7 +230,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.tabifyDockWidget(first_dock, dock)
             first_dock.raise_()  # 默认显示第一个
 
-
         # === 4. 创建 控制面板 Dock ===
         dock_control = QDockWidget("dock_Config", self)
         dock_control.setObjectName("dock_control")  # 方便调试
@@ -272,7 +264,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         dock_extra.setMinimumHeight(200)
         dock_extra.setMaximumWidth(300)
         dock_message.setMinimumHeight(200)
-        #dock_control.setMaximumWidth(300)
 
     def create_menus(self):
         """
@@ -336,7 +327,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.textEdit_log.append(s)
         except Exception:
             print(s)
-
 
 # ================== 初始化相关函数 ==================
 
@@ -419,9 +409,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
 
         # 更新表格显示距离、角度计算结果
-        # row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
-        #             f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
-        #             f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
         row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
@@ -475,7 +462,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             if is_valid:
                 self.zij_vector_list.append(zij_vector)
-
         current_count = len(self.zij_vector_list)
 
         if current_count >= 50:
@@ -609,7 +595,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.pushButton_SaveTable.setEnabled(True)
             #self.pushButton_CloseFile.setEnabled(True)
 
-
     def read_mat_file(self, filename):
         """
         读取 MAT 文件中的数据
@@ -693,15 +678,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
-
         # 更新表格显示距离、角度计算结果
-        # row_data = [f"{self.current_index}",f"{az:.4f}",f"{R_fft:.4f} m / {diag['f_fft_peak_Hz']:.4f}hz",
-        #             f"{R_macleod:.4f} m / {diag['f_macleod_Hz']:.4f}hz",f"{R_czt_fftpeak:.4f} m / {diag['f_czt_only_Hz']:.4f}hz",
-        #             f"{R_czt_macleod:.4f} m / {diag['f_combo_Hz']:.4f}hz"]
         row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
-
 
         row_count = self.tableWidget_distance.rowCount()
         self.tableWidget_distance.insertRow(row_count)

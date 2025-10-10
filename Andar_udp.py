@@ -1,11 +1,12 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 import sys, socket, threading
 import os
-from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler
 import time
 from PySide6 import QtCore
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
 from PySide6.QtGui import QPixmap, QIcon, QAction
+from PySide6.QtCore import QLoggingCategory
 import numpy as np
 from data_processing import *
 import motorController
@@ -789,8 +790,16 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.UDP_disconnect()
         super().closeEvent(e)
 
+def message_handler(msg_type: QtMsgType, context, msg: str):
+    # 过滤掉包含"QWindowsWindow::setGeometry: Unable to set geometry"的警告
+    if msg_type == QtMsgType.QtWarningMsg and "QWindowsWindow::setGeometry: Unable to set geometry" in msg:
+        return  # 不输出该警告
+    print(f"{msg_type}: {msg}", file=sys.stderr)
+
 if __name__ == "__main__":
+    qInstallMessageHandler(message_handler)
     app = QApplication(sys.argv)
     win = MyMainForm()
     win.show()
     sys.exit(app.exec())
+

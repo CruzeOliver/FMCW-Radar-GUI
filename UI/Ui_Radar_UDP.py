@@ -395,25 +395,6 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_9)
 
-        self.horizontalLayout_6 = QHBoxLayout()
-        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
-        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_6.addItem(self.horizontalSpacer_3)
-
-        self.checkBox_directwave = QCheckBox(self.groupBox_calibration)
-        self.checkBox_directwave.setObjectName(u"checkBox_directwave")
-        self.checkBox_directwave.setLayoutDirection(Qt.RightToLeft)
-
-        self.horizontalLayout_6.addWidget(self.checkBox_directwave)
-
-        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_6.addItem(self.horizontalSpacer_4)
-
-
-        self.verticalLayout_5.addLayout(self.horizontalLayout_6)
-
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
         self.pushButton_LoadMode = QPushButton(self.groupBox_calibration)
@@ -615,7 +596,6 @@ class Ui_MainWindow(object):
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration Mode\u200c", None))
         self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Apply Calibration", None))
-        self.checkBox_directwave.setText(QCoreApplication.translate("MainWindow", u"DirectWave Calibration", None))
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))

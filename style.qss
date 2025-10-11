@@ -153,7 +153,7 @@ border-radius: 4px;
 background-color: transparent;
 }
 QMenu::item:hover, QMenu::item:selected {
-background-color: #999999;
+background-color: #007bff;
 color: white;
 }
 QMenu::item:disabled {
@@ -168,4 +168,25 @@ QMenu::separator {
 height: 1px;
 background: #e0e0e0;
 margin: 4px 0;
+}
+
+/* ---------------------------------------------------------------------- /
+/ 5. Dock 窗口 (QDockWidget) 样式 /
+/ ---------------------------------------------------------------------- */
+QDockWidget {
+border: 3px solid #ced4da;
+}
+QDockWidget::title {
+background: #e9ecef;
+color: #333333;
+padding: 6px;
+border-bottom: 3px solid #ced4da;
+border-top-left-radius: 4px;
+border-top-right-radius: 4px;
+font-size: 10pt; /* 增大字体 */
+font-weight: bold; /* 加粗字体 */
+}
+QDockWidget::title:active {
+background: #c1d8f0;
+color: white;
 }

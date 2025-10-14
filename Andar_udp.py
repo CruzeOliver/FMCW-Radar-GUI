@@ -645,7 +645,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         #     #直接应用已学得的参数
         #     iq = apply_calibration_online(iq, omegas)
 
-        #compute_psl_isl_correct(iq)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)

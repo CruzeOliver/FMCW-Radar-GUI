@@ -174,10 +174,10 @@ margin: 4px 0;
 / 5. Dock 窗口 (QDockWidget) 样式 /
 / ---------------------------------------------------------------------- */
 QDockWidget {
-border: 3px solid #ced4da;
+border: 3px solid #007bff;
 }
 QDockWidget::title {
-background: #e9ecef;
+background: #007bff;
 color: #333333;
 padding: 6px;
 border-bottom: 3px solid #ced4da;

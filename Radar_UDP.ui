@@ -24,260 +24,6 @@
     <enum>Qt::LeftToRight</enum>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="1">
-     <widget class="Line" name="line_4">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="Line" name="line">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="Line" name="line_2">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QTabWidget" name="tabWidget_Message">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>12</horstretch>
-        <verstretch>3</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <family>Times New Roman</family>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="tab_log">
-       <attribute name="title">
-        <string>LogMessage</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QTextEdit" name="textEdit_log"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_Distance">
-       <attribute name="title">
-        <string>Distance / Angel</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QTableWidget" name="tableWidget_distance"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item row="0" column="0">
-     <widget class="QTabWidget" name="tabWidget_Display">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>12</horstretch>
-        <verstretch>10</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <family>Times New Roman</family>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="tab_Placeholder">
-       <attribute name="title">
-        <string>Placeholder</string>
-       </attribute>
-      </widget>
-      <widget class="QWidget" name="tab_ADC">
-       <attribute name="title">
-        <string>ADC</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_2">
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_tx0rx1" native="true">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_tx1rx0" native="true">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_tx1rx1" native="true">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_tx0rx0" native="true">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_ConstellationDiagram">
-       <attribute name="title">
-        <string>ConstellationDiagram</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_6">
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_CDtx0rx0" native="true"/>
-        </item>
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_CDtx0rx1" native="true"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_CDtx1rx0" native="true"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_CDtx1rx1" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_DirectWave">
-       <attribute name="title">
-        <string>Direct wave</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_5">
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_DWtx0rx0" native="true"/>
-        </item>
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_DWtx0rx1" native="true"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_DWtx1rx0" native="true"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_DWtx1rx1" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab__AmpPhase">
-       <attribute name="title">
-        <string>Amp/Phase</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_7">
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_APtx0rx0" native="true"/>
-        </item>
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_APtx0rx1" native="true"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_APtx1rx0" native="true"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_APtx1rx1" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_1DFFT">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>0</height>
-        </size>
-       </property>
-       <attribute name="title">
-        <string>1D_FFT</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_3">
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_1DFFTtx0rx0" native="true"/>
-        </item>
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_1DFFTtx0rx1" native="true"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_1DFFTtx1rx0" native="true"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_1DFFTtx1rx1" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Frequency</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_13">
-        <item>
-         <widget class="QWidget" name="widget_frequency" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_2DFFT">
-       <attribute name="title">
-        <string>2D_FFT</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_4">
-        <item row="0" column="0">
-         <widget class="QWidget" name="widget_2DFFTtx0rx0" native="true"/>
-        </item>
-        <item row="0" column="1">
-         <widget class="QWidget" name="widget_2DFFTtx0rx1" native="true"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QWidget" name="widget_2DFFTtx1rx0" native="true"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QWidget" name="widget_2DFFTtx1rx1" native="true"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_PoitCloud">
-       <attribute name="title">
-        <string>Point Cloud</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
-        <item>
-         <widget class="QWidget" name="widget_PointCloud" native="true"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
     <item row="0" column="2">
      <widget class="QGroupBox" name="groupBox_Config">
       <property name="sizePolicy">
@@ -552,11 +298,34 @@
            </layout>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_Next">
-            <property name="text">
-             <string>Next Frame</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_6">
+            <item>
+             <widget class="QPushButton" name="pushButton_Play">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>5</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Play</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_Next">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>5</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Next</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_15">
@@ -653,6 +422,246 @@
       </layout>
      </widget>
     </item>
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="tabWidget_Display">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>12</horstretch>
+        <verstretch>10</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <family>Times New Roman</family>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_Placeholder">
+       <attribute name="title">
+        <string>Placeholder</string>
+       </attribute>
+      </widget>
+      <widget class="QWidget" name="tab_ADC">
+       <attribute name="title">
+        <string>ADC</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_tx0rx1" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_tx1rx0" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_tx1rx1" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_tx0rx0" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_ConstellationDiagram">
+       <attribute name="title">
+        <string>ConstellationDiagram</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_6">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_CDtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_CDtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_CDtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_CDtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_DirectWave">
+       <attribute name="title">
+        <string>Direct wave</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_5">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_DWtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_DWtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_DWtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_DWtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab__AmpPhase">
+       <attribute name="title">
+        <string>Amp/Phase</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_7">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_APtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_APtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_APtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_APtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_1DFFT">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <attribute name="title">
+        <string>1D_FFT</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_1DFFTtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_1DFFTtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_1DFFTtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_1DFFTtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Frequency</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_13">
+        <item>
+         <widget class="QWidget" name="widget_frequency" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2DFFT">
+       <attribute name="title">
+        <string>2D_FFT</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_4">
+        <item row="0" column="0">
+         <widget class="QWidget" name="widget_2DFFTtx0rx0" native="true"/>
+        </item>
+        <item row="0" column="1">
+         <widget class="QWidget" name="widget_2DFFTtx0rx1" native="true"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_2DFFTtx1rx0" native="true"/>
+        </item>
+        <item row="1" column="1">
+         <widget class="QWidget" name="widget_2DFFTtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_PoitCloud">
+       <attribute name="title">
+        <string>Point Cloud</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item>
+         <widget class="QWidget" name="widget_PointCloud" native="true"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QTabWidget" name="tabWidget_Message">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>12</horstretch>
+        <verstretch>3</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <family>Times New Roman</family>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_log">
+       <attribute name="title">
+        <string>LogMessage</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QTextEdit" name="textEdit_log"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_Distance">
+       <attribute name="title">
+        <string>Distance / Angel</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QTableWidget" name="tableWidget_distance"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="1" column="2">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
     <item row="2" column="1">
      <widget class="Line" name="line_3">
       <property name="orientation">
@@ -660,10 +669,22 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="2">
-     <widget class="QWidget" name="widget_extra" native="true">
-      <layout class="QVBoxLayout" name="verticalLayout_6"/>
+    <item row="0" column="1">
+     <widget class="Line" name="line_4">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
      </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="2">
+     <widget class="QWidget" name="widget_extra" native="true"/>
     </item>
    </layout>
    <zorder>tabWidget_Display</zorder>
@@ -696,8 +717,8 @@
    <slot>UDP_connect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>949</x>
-     <y>171</y>
+     <x>994</x>
+     <y>101</y>
     </hint>
     <hint type="destinationlabel">
      <x>927</x>
@@ -712,8 +733,8 @@
    <slot>UDP_disconnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>949</x>
-     <y>200</y>
+     <x>994</x>
+     <y>130</y>
     </hint>
     <hint type="destinationlabel">
      <x>928</x>
@@ -728,8 +749,8 @@
    <slot>ReadFile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>867</x>
-     <y>459</y>
+     <x>912</x>
+     <y>361</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -744,8 +765,8 @@
    <slot>ShowNextFrame()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>949</x>
-     <y>489</y>
+     <x>993</x>
+     <y>392</y>
     </hint>
     <hint type="destinationlabel">
      <x>805</x>
@@ -760,8 +781,8 @@
    <slot>CloseFile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>867</x>
-     <y>519</y>
+     <x>912</x>
+     <y>423</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -776,8 +797,8 @@
    <slot>SaveTable()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>948</x>
-     <y>519</y>
+     <x>993</x>
+     <y>423</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -792,8 +813,8 @@
    <slot>LoadCalibratioMode()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>867</x>
-     <y>385</y>
+     <x>912</x>
+     <y>287</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -808,8 +829,8 @@
    <slot>MotorConnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>850</x>
-     <y>597</y>
+     <x>994</x>
+     <y>487</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -824,8 +845,8 @@
    <slot>MotorDisconnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>888</x>
-     <y>627</y>
+     <x>994</x>
+     <y>516</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -840,12 +861,28 @@
    <slot>AngelMove()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>925</x>
-     <y>653</y>
+     <x>993</x>
+     <y>546</y>
     </hint>
     <hint type="destinationlabel">
      <x>954</x>
      <y>712</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_Play</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>PlayMatfile()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>902</x>
+     <y>377</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>814</x>
+     <y>377</y>
     </hint>
    </hints>
   </connection>
@@ -861,5 +898,6 @@
   <slot>MotorConnect()</slot>
   <slot>MotorDisconnect()</slot>
   <slot>AngelMove()</slot>
+  <slot>PlayMatfile()</slot>
  </slots>
 </ui>

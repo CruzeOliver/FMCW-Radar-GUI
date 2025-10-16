@@ -616,6 +616,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             print(f"读取文件时出错: {e}")
             QMessageBox.warning(self, "读取失败", f"读取文件失败：{e}")
 
+    def PlayMatfile(self):
+        pass
+
+
     def show_matrix(self, frame_data):
         """
         显示当前帧的数据

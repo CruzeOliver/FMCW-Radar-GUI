@@ -1,14 +1,15 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
-from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
-#import scipy.io
+import scipy.io
 import numpy as np
 import warnings
 import time
 import csv
 import os
+from datetime import datetime
 from data_processing import *
 import motorController
 from udp_handler import *
@@ -81,6 +82,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.load_styles()
         self.setup_distance_table()
         self.setupInitialUIState()
+        self.tabWidget_Display.setMovable(True) #把widgets_tab设置为可移动转为dock
 
         options = ["CPP", "Python"]
         self.comboBox_MatFrom.addItems(options)
@@ -94,6 +96,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.frame_all_data = None
         self.frame_data_list = []
         self.current_index = 0
+        # mat文件自动播放
+        self.play_timer = QTimer(self)
+        self.play_timer.timeout.connect(self.ShowNextFrame) # 定时器的timeout连接到显示下一帧的函数
+        self.playback_speed_ms = 100 # 每帧播放间隔（毫秒）
+        self.is_playing = False # 播放状态标志
         # 实时处理相关变量
         self.fft_results_1D = None
         self.fft_results_2D = None
@@ -166,12 +173,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
 
-        self.tabWidget_Display.setMovable(True)
+
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
         self.pushButton_MoveAngel.setEnabled(False)
         self.pushButton_Next.setEnabled(False)
         self.pushButton_SaveTable.setEnabled(False)
+        self.pushButton_Play.setEnabled(False)
         #self.pushButton_CloseFile.setEnabled(False)
 
     def generate_unique_time(self):
@@ -593,6 +601,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.read_mat_file(file_path)
             self.pushButton_Next.setEnabled(True)
             self.pushButton_SaveTable.setEnabled(True)
+            self.pushButton_Play.setEnabled(True)
             #self.pushButton_CloseFile.setEnabled(True)
 
     def read_mat_file(self, filename):
@@ -617,8 +626,37 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             QMessageBox.warning(self, "读取失败", f"读取文件失败：{e}")
 
     def PlayMatfile(self):
-        pass
+        """
+        控制 MAT 文件的播放/暂停。
+        如果正在播放，则停止。如果停止，则从当前帧开始播放。
+        """
+        if not hasattr(self, 'play_timer'):
+            QMessageBox.warning(self, "错误", "未初始化播放定时器！")
+            return
 
+        if not hasattr(self, 'frame_data_list') or not self.frame_data_list:
+            QMessageBox.warning(self, "播放失败", "没有加载任何帧数据！")
+            return
+
+        if self.is_playing:
+            # 停止播放
+            self.play_timer.stop()
+            self.is_playing = False
+            self.bus.log.emit("停止播放 MAT 文件。")
+            self.pushButton_Play.setText("Play")
+        else:
+            # 开始播放
+            if self.current_index >= len(self.frame_data_list) - 1:
+                # 如果已经在最后一帧，则从头开始
+                self.current_index = 0
+                self.show_matrix(self.frame_all_data[self.frame_data_list[self.current_index]])
+
+            # 启动定时器
+            self.play_timer.start(self.playback_speed_ms) # 使用预设的间隔
+            self.is_playing = True
+            self.bus.log.emit(f"开始播放 MAT 文件，间隔：{self.playback_speed_ms} ms。")
+            self.pushButton_Play.setText("Pause")
+            # 可以更新按钮文本为“暂停”
 
     def show_matrix(self, frame_data):
         """
@@ -693,11 +731,19 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.scrollToBottom()# 滚动到底部
 
     def ShowNextFrame(self):
+        """
+        显示下一帧的数据，供手动和定时器调用。
+        """
         if self.current_index < len(self.frame_data_list) - 1:
             self.current_index += 1
+            self.bus.log.emit(f"显示帧：{self.frame_data_list[self.current_index]}")
             self.show_matrix(self.frame_all_data[self.frame_data_list[self.current_index]])
         else:
-            QMessageBox.information(self, "没有更多数据", "已到达文件末尾！")
+            # 播放结束
+            if self.is_playing:
+                self.PlayMatfile() # 二次调用 PlayMatfile 来停止播放
+            else:
+                QMessageBox.information(self, "没有更多数据", "已到达文件末尾！")
 
     def CloseFile(self):
         self.frame_all_data = None
@@ -711,6 +757,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.phi_matrix = None
         self.display.reset()
         self.bus.log.emit("已关闭文件，清空数据")
+        self.setupInitialUIState()
 
     def SaveTable(self):
         """

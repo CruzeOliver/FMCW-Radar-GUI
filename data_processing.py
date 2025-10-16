@@ -15,6 +15,16 @@ CHIRP_T1 = 14  # 微秒
 CHIRP_T2 = 0   # 微秒
 CHIRP_PERIOD = CHIRP_T0 + CHIRP_T1 + CHIRP_T2  # Chirp周期，单位微秒
 
+virtual_positions_m = np.array([
+    [0.5 * wavelength, 0.0],              # TX0→RX0
+    [1.0 * wavelength, 0.0],              # TX0→RX1
+    [0.5 * wavelength, 0.5 * wavelength], # TX1→RX0
+    [1.0 * wavelength, 0.5 * wavelength]  # TX1→RX1
+])
+
+# 我们只关心方位角，所以取 x 坐标（水平方向），归一化为波长
+virtual_x_normalized = virtual_positions_m[:, 0] / wavelength  # [0.5, 1.0, 0.5, 1.0]
+
 """"
     数据重组前：
     chirp 0:
@@ -883,23 +893,79 @@ def learn_calibration_parameters(iq_data_no_target):
     # 保存为全局参数（可存入文件或全局变量）
     return np.array(calibration_omegas)  # shape: (4,)
 
-def apply_calibration_online(iq_data, calibration_omegas):
+
+def music_azimuth_spectrum_auto(fft2d_results):
     """
-    输入：
-        iq_data: 实时采集的数据 (4, n_chirps, 256)
-        calibration_omegas: 之前学得的斜率数组 (4,)
-    输出：
-        校准后的数据
+    自动执行 MUSIC 角度谱估计，无需手动输入 range_bin/doppler_bin
+
+    参数:
+        fft2d_results: shape=(4, n_chirp, n_range)，2D-FFT 后的数据
+
+    返回:
+        angles: 扫描角度数组
+        spectrum_dB: MUSIC 谱 (dB)
+        peak_angle: 估计的方位角
+        range_est: 估计的距离
+        velocity_est: 估计的速度
     """
-    FS_HZ = 7.14e6
-    N_SAMPLES = 256
-    t = np.arange(N_SAMPLES) / FS_HZ
+    n_ant, n_chirp, n_range = fft2d_results.shape
 
-    calibrated_iq = iq_data.copy()
+    # -------------------------------
+    # 步骤1：生成 RD 谱图，找最强目标
+    # -------------------------------
+    # 对 4 个通道平均，得到粗略 RD 图
+    rd_map = np.mean(np.abs(fft2d_results), axis=0)  # (n_chirp, n_range)
 
-    for ch in [1, 2, 3]:
-        omega = calibration_omegas[ch]
-        compensation = np.exp(-1j * omega * t)  # (256,)
-        calibrated_iq[ch] *= compensation  # 广播到所有 chirp
+    # 找全局最大值位置
+    max_idx = np.unravel_index(np.argmax(rd_map), rd_map.shape)
+    doppler_bin, range_bin = max_idx  # 注意：fftshift 后 doppler_bin 是中心对称的
 
-    return calibrated_iq
+    # -------------------------------
+    # 步骤2：提取快拍数据 X (4, L)
+    # -------------------------------
+    # 方法1：用 doppler_bin 附近多个单元作为快拍
+    window_size = 5
+    start = max(0, doppler_bin - window_size//2)
+    end = min(n_chirp, doppler_bin + window_size//2 + 1)
+    X = fft2d_results[:, start:end, range_bin]  # (4, L)
+    X = X.reshape(n_ant, -1)  # (4, L)
+
+    if X.shape[1] < 2:
+        raise ValueError("快拍数不足，无法进行 MUSIC")
+
+    # -------------------------------
+    # 步骤3：协方差矩阵 & 特征分解
+    # -------------------------------
+    R = X @ X.conj().T / X.shape[1]  # (4,4)
+
+    eigvals, eigvecs = np.linalg.eigh(R)  # 升序
+    eigvals = eigvals[::-1]
+    eigvecs = eigvecs[:, ::-1]
+
+    # 假设信号源数 K=1
+    K = 1
+    U_n = eigvecs[:, K:]  # 噪声子空间 (4, 3)
+
+    # -------------------------------
+    # 步骤4：扫描方位角，计算 MUSIC 谱
+    # -------------------------------
+    angles = np.linspace(-90, 90, 1801)  # 0.1° 步进
+    spectrum = np.zeros_like(angles)
+
+    for i, angle in enumerate(angles):
+        theta = np.deg2rad(angle)
+        # 导向矢量：a(θ) = exp(-j*2π * (x_i/λ) * sinθ)
+        a = np.exp(-1j * 2 * np.pi * virtual_x_normalized * np.sin(theta))  # (4,)
+        a = a.reshape(-1, 1)
+
+        # MUSIC 谱
+        denom = np.abs((a.conj().T @ U_n @ U_n.conj().T @ a).item())
+        spectrum[i] = 1 / (denom + 1e-12)
+
+    spectrum_dB = 10 * np.log10(spectrum / np.max(spectrum))
+
+    # 找峰值
+    peak_idx = np.argmax(spectrum)
+    peak_angle = angles[peak_idx]
+
+    return angles, spectrum_dB, peak_angle

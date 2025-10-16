@@ -638,18 +638,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame(frame_data_flat, chirp, sample,window=my_window)
-        # omegas = learn_calibration_parameters(iq)
-        # #omegas =[0,95314.90114739, -257064.23834787,-27406.54915671]
-        # print(f"学习到的补偿频率：{omegas}")
-        # if self.checkBox_directwave.isChecked():
-        #     #直接应用已学得的参数
-        #     iq = apply_calibration_online(iq, omegas)
 
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
+
+
         if self.checkBox_CalibrationMode.isChecked():
             #得到2DFFT的峰值索引 对应的zij向量
             peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
@@ -676,6 +672,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+        angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
+        self.bus.log.emit(f"估计的角度（度）：{peak_angle}")
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
         # 更新表格显示距离、角度计算结果
         row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",

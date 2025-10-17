@@ -27,6 +27,7 @@ class PgDisplay:
                  constellation_placeholders: Dict[str, QWidget],
                  amp_phase_placeholders: Dict[str, QWidget],
                  frequency_placeholders: Dict[str, QWidget],
+                 MUSICspectrum_placeholders: Dict[str, QWidget],
                  *,
                  r_max: float = 6.0,         # 最大量程 (距离)
                  fov_deg: float = 180.0,      # 扇形角度（例如120°）
@@ -49,6 +50,7 @@ class PgDisplay:
         self.pg_DW_dict: Dict[str, Dict[str, Any]] = {} # Direct Wave 图像
         self.pg_amp_phase_dict: Dict[str, Dict[str, Any]] = {} # Amp-Phase 图像
         self.pg_frequency_dict: Dict[str, Dict[str, Any]] = {} # frequency 图像
+        self.pg_MUSICspectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSICspectrum 图像
 
         self._colormap = self._build_jet_colormap()
 
@@ -64,6 +66,7 @@ class PgDisplay:
         self._theta_center = np.deg2rad(theta_center_deg)
         self._fov = np.deg2rad(fov_deg)
         self._init_point_cloud_semicircle(point_cloud_placeholders)
+        self._init_MUSICspectrum(MUSICspectrum_placeholders)
 
         self.frequency_cache = {
             'FFT': deque(maxlen=20),
@@ -71,7 +74,6 @@ class PgDisplay:
             'CZT': deque(maxlen=20),
             'Macleod-CZt': deque(maxlen=20),
         }
-
 
 
     # -------------------- Public Update APIs --------------------
@@ -770,54 +772,6 @@ class PgDisplay:
 
 
 
-    def update_frequency2(self, diag: dict):
-        """
-        更新频率图表。
-
-        参数:
-            diag : dict
-                包含四种算法频率值的字典。
-                键包括: 'f_fft_peak_Hz', 'f_macleod_Hz',
-                'f_czt_only_Hz', 'f_combo_Hz'。
-            key : str
-                图表在 pg_frequency_dict 中的键名。
-        """
-        frequency_keys = ['frequency']
-        # 从字典中安全地获取数据，如果键不存在则返回 NaN
-        f_fft = diag.get('f_fft_peak_Hz')
-        f_macleod = diag.get('f_macleod_Hz')
-        f_czt = diag.get('f_czt_only_Hz')
-        f_combo = diag.get('f_combo_Hz')
-
-        # 确保图表句柄存在
-        h = self.pg_frequency_dict.get('frequency')
-        if not h:
-            return
-
-        # 获取曲线句柄
-        curve_fft = h.get('FFT')
-        curve_macleod = h.get('Macleod')
-        curve_czt = h.get('CZT')
-        curve_combo = h.get('Macleod-CZt')
-
-        # 将新数据添加到缓存
-        self.frequency_cache['FFT'].append(f_fft)
-        self.frequency_cache['Macleod'].append(f_macleod)
-        self.frequency_cache['CZT'].append(f_czt)
-        self.frequency_cache['Macleod-CZt'].append(f_combo)
-
-        # 更新绘图
-        x_data = list(range(len(self.frequency_cache['FFT'])))
-
-        if curve_fft:
-            curve_fft.setData(x_data, list(self.frequency_cache['FFT']))
-        if curve_macleod:
-            curve_macleod.setData(x_data, list(self.frequency_cache['Macleod']))
-        if curve_czt:
-            curve_czt.setData(x_data, list(self.frequency_cache['CZT']))
-        if curve_combo:
-            curve_combo.setData(x_data, list(self.frequency_cache['Macleod-CZt']))
-
     def update_fft2d(self, fft2d_results: np.ndarray, n_points: int, n_chirp: int):
         """
         fft2d_results: shape (4, n_chirp, n_points)
@@ -850,6 +804,69 @@ class PgDisplay:
             view.setAspectLocked(False)
             view.invertY(False)
             view.autoRange()
+
+    def update_MUSICspectrum(self, angles: np.ndarray, spectrum_dB: np.ndarray, peak_angle: float):
+        """
+        更新 MUSIC 角度谱图。
+
+        参数:
+            angles (np.ndarray): 扫描角度数组 (X 轴数据)。
+            spectrum_dB (np.ndarray): MUSIC 谱 (dB) (Y 轴数据)。
+            peak_angle (float): 估计的方位角（用于标记和显示）。
+        """
+
+        # -----------------------------------------------------
+        # 1. 查找谱图峰值数据 (用于标记)
+        # -----------------------------------------------------
+        if spectrum_dB.size == 0:
+            # 如果没有数据，清空图表并退出
+            for h in self.pg_plot_dict.values():
+                if 'MUSIC' in h:
+                    h['MUSIC'].setData([], [])
+            return
+
+        # 找到谱图中的最大值及其对应的角度（确保与传入的 peak_angle 一致）
+        peak_idx = np.argmax(spectrum_dB)
+        peak_value = spectrum_dB[peak_idx]
+
+        # -----------------------------------------------------
+        # 2. 遍历并更新所有 MUSIC 谱图
+        # -----------------------------------------------------
+        for key, h in self.pg_plot_dict.items():
+            # 检查 h 是否包含 MUSIC 谱图所需的对象
+            if 'MUSIC' not in h:
+                continue
+
+            pw = h['pw']
+
+            # 2.1. 更新主谱图曲线
+            music_curve = h['MUSIC']
+            music_curve.setData(angles, spectrum_dB)
+
+            # 2.2. 强制设置 X 轴范围和 Y 轴自动缩放
+            # X 轴设置为 [-90, 90]
+            pw.setXRange(-90, 90, padding=0.01)
+            # 开启 Y 轴自动缩放，以适应谱图的动态范围
+            pw.enableAutoRange(y=True)
+
+            # 2.3. 更新标题，显示估计的峰值角度
+            pw.setTitle(f" {key} | Peak Angle: {peak_angle:.2f}°",
+                        color='k', size='12pt')
+
+            # 2.4. 标记峰值点
+            # 检查是否已创建峰值标记的 PlotDataItem
+            if 'peak_point' not in h:
+                # 首次运行时创建峰值标记 (红色星形符号)
+                h['peak_point'] = pw.plot(
+                    pen=None,
+                    symbol='star',
+                    symbolSize=20,
+                    symbolBrush=(255, 0, 0), # 红色填充
+                    name='Peak'
+                )
+
+            # 更新峰值标记的位置
+            h['peak_point'].setData([peak_angle], [peak_value])
 
     def update_point_cloud_polar(self, key: str,
                                  r: float, # 现在接受标量 float
@@ -1147,6 +1164,20 @@ class PgDisplay:
             layout.addWidget(iv)
             self.pg_img_dict[key] = iv
 
+    def _init_MUSICspectrum(self, placeholders: Dict[str, QWidget]):
+        for key, container in placeholders.items():
+            layout = QVBoxLayout(container)
+            pw = pg.PlotWidget()
+            self._set_plot_style(pw)
+            pw.addLegend(offset=(10, 10))
+            pw.setLabel('bottom', 'Angle (deg)')
+            pw.setLabel('left', 'Spectrum (dB)')
+            pw.setTitle(f"MUSIC Spectrum {key}", color='k', size='12pt')
+            layout.addWidget(pw)
+
+            curve = pw.plot(pen=pg.mkPen('b', width=2), name='MUSIC Spectrum')
+            self.pg_plot_dict[key] = {'pw': pw, 'MUSIC': curve}
+
     def _init_point_cloud_semicircle(self, placeholders: Dict[str, QWidget]):
         for key, container in placeholders.items():
             layout = QVBoxLayout(container)
@@ -1247,11 +1278,11 @@ class PgDisplay:
         # 重置 ADC 和 1DFFT 曲线
         for h in self.pg_plot_dict.values():
             if 'I' in h:
-                h['I'].clear()
+                h['I'].setData([], [])
             if 'Q' in h:
-                h['Q'].clear()
+                h['Q'].setData([], [])
             if 'MAG' in h:
-                h['MAG'].clear()
+                h['MAG'].setData([], [])
 
         # 重置 2DFFT 图像
         for iv in self.pg_img_dict.values():
@@ -1263,15 +1294,15 @@ class PgDisplay:
         self._r_buffer.clear()
         self._theta_buffer.clear()
         for h in self.pg_cloud_dict.values():
-            h['scatter'].clear()
+            h['scatter'].setData([], [])
 
         # 重置星座图（包括拟合元素）
         for h in self.pg_const_dict.values():
-            h['scatter'].clear()
-            h['unit_circle'].clear()
-            h['ellipse'].clear()
-            h['major_axis'].clear()
-            h['minor_axis'].clear()
+            h['scatter'].setData([], [])
+            h['unit_circle'].setData([], [])
+            h['ellipse'].setData([], [])
+            h['major_axis'].setData([], [])
+            h['minor_axis'].setData([], [])
             h['metrics_text'].setText("")
             # 重置坐标范围
             h['pw'].setRange(xRange=(-1, 1), yRange=(-1, 1), padding=0.05)
@@ -1316,8 +1347,8 @@ class PgDisplay:
 
             h = self.pg_plot_dict[key]
             # 清空曲线数据
-            h['phase'].clear()
-            h['phase_ref'].clear()
+            h['phase'].setData([], [])
+            h['phase_ref'].setData([], [])
 
             # 清空文本标签
             h['metrics_text'].setText("")
@@ -1335,3 +1366,22 @@ class PgDisplay:
             )
         if hasattr(self, '_direct_wave_frame_count'):
             del self._direct_wave_frame_count  # 下次 update 会重新初始化为 0
+
+        music_plot_handles = [h for h in self.pg_plot_dict.values() if 'MUSIC' in h]
+
+        for h in music_plot_handles:
+
+            # 1. 清空 MUSIC 曲线（使用 setData([], []) 确保清除所有符号和线条）
+            h['MUSIC'].setData([], [])
+
+            # 2. 清空峰值标记（假设您在 update_MUSICspectrum 中创建了 'peak_point'）
+            if 'peak_point' in h:
+                h['peak_point'].setData([], [])
+
+            # 3. 重置 PlotWidget 标题（移除峰值信息）
+            if 'pw' in h:
+                h['pw'].setTitle("MUSIC Spectrum", color='k', size='12pt')
+
+                # 4. 重置坐标范围（角度范围 -90到90）
+                h['pw'].setXRange(-90, 90, padding=10)
+                h['pw'].enableAutoRange(y=True) # 保持 Y 轴自动缩放

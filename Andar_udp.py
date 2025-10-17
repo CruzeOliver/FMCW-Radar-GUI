@@ -122,7 +122,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             DirectWave_placeholders=self.DirectWave_placeholders,
             constellation_placeholders=self.constellation_placeholders,
             amp_phase_placeholders=self.amp_phase_placeholders,
-            frequency_placeholders=self.frequency_placeholders
+            frequency_placeholders=self.frequency_placeholders,
+            MUSICspectrum_placeholders=self.MUSICspectrum_placeholders
         )
         # 转台电机实例化
         self.CH375motor = motorController.MotorController()
@@ -149,6 +150,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         ConstellationDiagram_keys = ['CDtx0rx0', 'CDtx0rx1', 'CDtx1rx0', 'CDtx1rx1']
         amp_phase_keys = ['APtx0rx0', 'APtx0rx1', 'APtx1rx0', 'APtx1rx1']
         frequency_keys = ['frequency']
+        MUSICspectrum_keys = ['MUSICspectrum']
 
         self.adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
         self.fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
@@ -158,6 +160,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.constellation_placeholders = {k: getattr(self, f'widget_{k}') for k in ConstellationDiagram_keys}
         self.amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
         self.frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
+        self.MUSICspectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum_keys}
 
     def setup_distance_table(self):
         self.tableWidget_distance.setColumnCount(10)
@@ -715,7 +718,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
         angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
-        self.bus.log.emit(f"估计的角度（度）：{peak_angle}")
+        self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
+
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
         # 更新表格显示距离、角度计算结果
         row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",

@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from PySide6.QtWidgets import QVBoxLayout, QWidget, QGraphicsPathItem
+from PySide6.QtWidgets import QVBoxLayout, QWidget, QGraphicsPathItem, QLabel
 from PySide6.QtCore import QRectF, Qt
 from PySide6 import QtCore
 import pyqtgraph as pg
@@ -28,6 +28,7 @@ class PgDisplay:
                  amp_phase_placeholders: Dict[str, QWidget],
                  frequency_placeholders: Dict[str, QWidget],
                  MUSICspectrum_placeholders: Dict[str, QWidget],
+                 MUSIC2dSpectrum_placeholders: Dict[str, QWidget],
                  *,
                  r_max: float = 6.0,         # 最大量程 (距离)
                  fov_deg: float = 180.0,      # 扇形角度（例如120°）
@@ -51,6 +52,7 @@ class PgDisplay:
         self.pg_amp_phase_dict: Dict[str, Dict[str, Any]] = {} # Amp-Phase 图像
         self.pg_frequency_dict: Dict[str, Dict[str, Any]] = {} # frequency 图像
         self.pg_MUSICspectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSICspectrum 图像
+        self.pg_MUSIC2dSpectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSIC2dSpectrum 图像
 
         self._colormap = self._build_jet_colormap()
 
@@ -67,6 +69,7 @@ class PgDisplay:
         self._fov = np.deg2rad(fov_deg)
         self._init_point_cloud_semicircle(point_cloud_placeholders)
         self._init_MUSICspectrum(MUSICspectrum_placeholders)
+        self._init_MUSIC2dSpectrum(MUSIC2dSpectrum_placeholders)
 
         self.frequency_cache = {
             'FFT': deque(maxlen=20),
@@ -770,8 +773,6 @@ class PgDisplay:
                     if curve:
                         curve.clear()
 
-
-
     def update_fft2d(self, fft2d_results: np.ndarray, n_points: int, n_chirp: int):
         """
         fft2d_results: shape (4, n_chirp, n_points)
@@ -805,68 +806,103 @@ class PgDisplay:
             view.invertY(False)
             view.autoRange()
 
-    def update_MUSICspectrum(self, angles: np.ndarray, spectrum_dB: np.ndarray, peak_angle: float):
+    def update_Azimuth_Spectrum(self,
+                            spectrum_dB_2d: np.ndarray,
+                            AZ_grid: np.ndarray,
+                            EL_grid: np.ndarray,
+                            peak_az: float,
+                            peak_el: float):
         """
-        更新 MUSIC 角度谱图。
+        更新 MUSIC 角度谱图（Azimuth 1D 谱线）。
+
+        功能：根据 2D 谱和峰值俯仰角，提取对应的 1D Azimuth 谱线进行显示。
 
         参数:
-            angles (np.ndarray): 扫描角度数组 (X 轴数据)。
-            spectrum_dB (np.ndarray): MUSIC 谱 (dB) (Y 轴数据)。
-            peak_angle (float): 估计的方位角（用于标记和显示）。
+            spectrum_dB_2d (np.ndarray): 2D MUSIC 谱 (dB)。
+            AZ_grid (np.ndarray): Azimuth 角度网格。
+            EL_grid (np.ndarray): Elevation 角度网格。
+            peak_az (float): 估计的 Azimuth 峰值。
+            peak_el (float): 估计的 Elevation 峰值 (用于定位切片)。
         """
-
-        # -----------------------------------------------------
-        # 1. 查找谱图峰值数据 (用于标记)
-        # -----------------------------------------------------
-        if spectrum_dB.size == 0:
+        if spectrum_dB_2d.size == 0:
             # 如果没有数据，清空图表并退出
             for h in self.pg_plot_dict.values():
                 if 'MUSIC' in h:
                     h['MUSIC'].setData([], [])
             return
-
-        # 找到谱图中的最大值及其对应的角度（确保与传入的 peak_angle 一致）
-        peak_idx = np.argmax(spectrum_dB)
-        peak_value = spectrum_dB[peak_idx]
-
         # -----------------------------------------------------
-        # 2. 遍历并更新所有 MUSIC 谱图
+        # 1. 提取 1D Azimuth 谱线 (新逻辑)
+        # -----------------------------------------------------
+        # 1a. 找到最接近峰值俯仰角 (peak_el) 的行索引
+        el_angles = EL_grid[:, 0]
+        peak_el_idx = np.argmin(np.abs(el_angles - peak_el))
+        # 1b. 提取 Azimuth 角度作为 X 轴 (angles)
+        azimuth_angles = AZ_grid[0, :]
+        # 1c. 提取对应峰值俯仰角处的 Azimuth 谱 (spectrum_dB)
+        azimuth_spectrum_1d = spectrum_dB_2d[peak_el_idx, :]
+        # 1d. 找到 1D 谱线中，对应 peak_az 位置的 dB 值（用于标记 Y 坐标）
+        peak_idx = np.argmin(np.abs(azimuth_angles - peak_az))
+        peak_value = azimuth_spectrum_1d[peak_idx]
+        # -----------------------------------------------------
+        # 2. 遍历并更新所有 MUSIC 谱图 (绘图逻辑不变)
         # -----------------------------------------------------
         for key, h in self.pg_plot_dict.items():
-            # 检查 h 是否包含 MUSIC 谱图所需的对象
             if 'MUSIC' not in h:
                 continue
-
             pw = h['pw']
-
             # 2.1. 更新主谱图曲线
             music_curve = h['MUSIC']
-            music_curve.setData(angles, spectrum_dB)
-
+            music_curve.setData(azimuth_angles, azimuth_spectrum_1d) # 使用提取出的 1D 数据
             # 2.2. 强制设置 X 轴范围和 Y 轴自动缩放
-            # X 轴设置为 [-90, 90]
             pw.setXRange(-90, 90, padding=0.01)
-            # 开启 Y 轴自动缩放，以适应谱图的动态范围
             pw.enableAutoRange(y=True)
-
-            # 2.3. 更新标题，显示估计的峰值角度
-            pw.setTitle(f" {key} | Peak Angle: {peak_angle:.2f}°",
+            # 2.3. 更新标题
+            pw.setTitle(f" {key} | Peak Azimuth: {peak_az:.2f}° (at El={peak_el:.2f}°)",
                         color='k', size='12pt')
-
             # 2.4. 标记峰值点
-            # 检查是否已创建峰值标记的 PlotDataItem
             if 'peak_point' not in h:
-                # 首次运行时创建峰值标记 (红色星形符号)
                 h['peak_point'] = pw.plot(
                     pen=None,
-                    symbol='star',
+                    symbol='x',
                     symbolSize=20,
-                    symbolBrush=(255, 0, 0), # 红色填充
+                    symbolBrush=(255, 0, 0),
                     name='Peak'
                 )
-
             # 更新峰值标记的位置
-            h['peak_point'].setData([peak_angle], [peak_value])
+            h['peak_point'].setData([peak_az], [peak_value])
+
+    def update_MUSIC2dSpectrum(self,
+                           az_grid: np.ndarray,
+                           el_grid: np.ndarray,
+                           spectrum_dB: np.ndarray,
+                           peak_az: float,
+                           peak_el: float):
+        if spectrum_dB.size == 0:
+            return
+
+        for key, h in self.pg_music2d_dict.items():
+            image_item = h['image_item']
+            plot_item = h['plot_item']
+
+            if hasattr(self, '_colormap'):
+                lut = self._colormap.getLookupTable(nPts=256)
+                image_item.setLookupTable(lut)
+
+            # spectrum_dB shape: (91_el, 181_az)
+            # 尝试转置：让行对应X轴(az)，列对应Y轴(el)
+            image_transposed = spectrum_dB.T  # 变成 (181_az, 91_el)
+            image_item.setImage(image_transposed)
+
+            # setRect: (x0, y0, width, height)
+            image_item.setRect(QtCore.QRectF(-90, -45, 180, 90))
+
+            plot_item.setXRange(-90, 90, padding=0)
+            plot_item.setYRange(-45, 45, padding=0)
+
+            h['metrics_label'].setText(f"Peak: Az={peak_az:.2f}°, El={peak_el:.2f}°")
+
+            if 'peak_scatter' in h:
+                h['peak_scatter'].setData([peak_az], [peak_el])
 
     def update_point_cloud_polar(self, key: str,
                                  r: float, # 现在接受标量 float
@@ -1172,11 +1208,52 @@ class PgDisplay:
             pw.addLegend(offset=(10, 10))
             pw.setLabel('bottom', 'Angle (deg)')
             pw.setLabel('left', 'Spectrum (dB)')
-            pw.setTitle(f"MUSIC Spectrum {key}", color='k', size='12pt')
+            pw.setTitle(f"{key}", color='k', size='12pt')
             layout.addWidget(pw)
 
             curve = pw.plot(pen=pg.mkPen('b', width=2), name='MUSIC Spectrum')
             self.pg_plot_dict[key] = {'pw': pw, 'MUSIC': curve}
+
+
+    def _init_MUSIC2dSpectrum(self, placeholders: Dict[str, QWidget]):
+        self.pg_music2d_dict = {}
+        for key, container in placeholders.items():
+            layout = QVBoxLayout(container)
+
+            # 使用 PlotItem 而不是 ImageView
+            plot_item = pg.PlotItem()
+            plot_item.setLabel('bottom', 'Azimuth (°)')
+            plot_item.setLabel('left', 'Elevation (°)')
+            plot_item.showGrid(x=True, y=True, alpha=0.5)
+
+            # 创建 ImageItem
+            image_item = pg.ImageItem()
+            plot_item.addItem(image_item)
+
+            # 添加峰值标记
+            peak_scatter = pg.ScatterPlotItem(
+                pen=pg.mkPen('w', width=2),
+                brush=pg.mkBrush('r'),
+                size=10,
+                symbol='x'
+            )
+            plot_item.addItem(peak_scatter)
+
+            title_label = QLabel(f"{key}")
+            title_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(title_label)
+            layout.addWidget(pg.PlotWidget(plotItem=plot_item))  # 或直接 addWidget(plot_item.getViewBox().parent())
+
+            metrics_label = QLabel("Peak: Az=N/A, El=N/A")
+            layout.addWidget(metrics_label)
+
+            self.pg_music2d_dict[key] = {
+                'image_item': image_item,
+                'plot_item': plot_item,
+                'title_label': title_label,
+                'metrics_label': metrics_label,
+                'peak_scatter': peak_scatter
+            }
 
     def _init_point_cloud_semicircle(self, placeholders: Dict[str, QWidget]):
         for key, container in placeholders.items():
@@ -1335,7 +1412,6 @@ class PgDisplay:
                 h['czt_combo_spectrum'].clear()
             if 'czt_spectrum' in h:
                 h['czt_spectrum'].clear()
-
             # 重置坐标范围，可以设置为默认值或根据需要调整
             if 'pw' in h:
                 h['pw'].setRange(xRange=(0, 1), yRange=(0, 1), padding=0.05)
@@ -1344,20 +1420,16 @@ class PgDisplay:
         for key in DirectWave_keys:
             if key not in self.pg_plot_dict:
                 continue
-
             h = self.pg_plot_dict[key]
             # 清空曲线数据
             h['phase'].setData([], [])
             h['phase_ref'].setData([], [])
-
             # 清空文本标签
             h['metrics_text'].setText("")
-
             # 重置缓冲区
             h['frame_buffer'].clear()
             h['phase_buffer'].clear()
             h['ref_phase_buffer'].clear()
-
             # 重置坐标轴范围
             h['pw_phase'].setRange(
                 xRange=(0, 100),           # 与 MAX_HISTORY_LEN=100 匹配
@@ -1368,20 +1440,47 @@ class PgDisplay:
             del self._direct_wave_frame_count  # 下次 update 会重新初始化为 0
 
         music_plot_handles = [h for h in self.pg_plot_dict.values() if 'MUSIC' in h]
-
         for h in music_plot_handles:
-
             # 1. 清空 MUSIC 曲线（使用 setData([], []) 确保清除所有符号和线条）
             h['MUSIC'].setData([], [])
 
             # 2. 清空峰值标记（假设您在 update_MUSICspectrum 中创建了 'peak_point'）
             if 'peak_point' in h:
                 h['peak_point'].setData([], [])
-
             # 3. 重置 PlotWidget 标题（移除峰值信息）
             if 'pw' in h:
                 h['pw'].setTitle("MUSIC Spectrum", color='k', size='12pt')
-
                 # 4. 重置坐标范围（角度范围 -90到90）
                 h['pw'].setXRange(-90, 90, padding=10)
                 h['pw'].enableAutoRange(y=True) # 保持 Y 轴自动缩放
+
+        for key, h in self.pg_music2d_dict.items():
+            image_item = h.get('image_item')
+            plot_item = h.get('plot_item')
+            peak_scatter = h.get('peak_scatter')
+            metrics_label = h.get('metrics_label')
+
+            # 1. 清空 ImageItem 数据
+            if image_item is not None:
+                # 清空数据：传入 None 或空数组
+                image_item.setImage(np.zeros((1, 1)))
+
+                # 可选：重置 Rect 到初始状态，以防万一
+                # 如果您的 update 中设置了 QRectF(-90, -45, 180, 90)，则这里可以重置
+                image_item.setRect(QRectF(0, 0, 0, 0)) # 重置为零区域
+
+            # 2. 清空峰值标记
+            if peak_scatter is not None:
+                # 清空散点图数据
+                peak_scatter.setData([], [])
+
+            # 3. 重置文本指标
+            if metrics_label is not None:
+                metrics_label.setText("Peak: Az=N/A, El=N/A")
+
+            # 4. 可选：重置 ViewBox 的视图，确保能看到空数据
+            if plot_item is not None:
+                # 重新设置默认的坐标轴范围，或者调用 autoRange
+                plot_item.enableAutoRange(enable=True)
+                plot_item.autoRange()
+

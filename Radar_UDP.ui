@@ -613,13 +613,13 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab_2dMUSICspectrum">
+      <widget class="QWidget" name="tab_MUSIC2dSpectrum">
        <attribute name="title">
         <string>2DSpectrum</string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_7">
         <item>
-         <widget class="QWidget" name="widget_2dMUSICspectrum" native="true"/>
+         <widget class="QWidget" name="widget_MUSIC2dSpectrum" native="true"/>
         </item>
        </layout>
       </widget>

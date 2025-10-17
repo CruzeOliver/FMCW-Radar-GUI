@@ -123,7 +123,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             constellation_placeholders=self.constellation_placeholders,
             amp_phase_placeholders=self.amp_phase_placeholders,
             frequency_placeholders=self.frequency_placeholders,
-            MUSICspectrum_placeholders=self.MUSICspectrum_placeholders
+            MUSICspectrum_placeholders=self.MUSICspectrum_placeholders,
+            MUSIC2dSpectrum_placeholders=self.MUSIC2dSpectrum_placeholders
         )
         # 转台电机实例化
         self.CH375motor = motorController.MotorController()
@@ -151,6 +152,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         amp_phase_keys = ['APtx0rx0', 'APtx0rx1', 'APtx1rx0', 'APtx1rx1']
         frequency_keys = ['frequency']
         MUSICspectrum_keys = ['MUSICspectrum']
+        MUSICspectrum2d_keys = ['MUSIC2dSpectrum']
 
         self.adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
         self.fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
@@ -161,6 +163,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.amp_phase_placeholders = {k: getattr(self, f'widget_{k}') for k in amp_phase_keys}
         self.frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
         self.MUSICspectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum_keys}
+        self.MUSIC2dSpectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum2d_keys}
 
     def setup_distance_table(self):
         self.tableWidget_distance.setColumnCount(10)
@@ -175,7 +178,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
-
 
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
@@ -717,8 +719,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-        angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
-        self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
+        # angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
+        # self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
+        az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
+        self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
+        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+
 
         self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
         # 更新表格显示距离、角度计算结果

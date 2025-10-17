@@ -969,3 +969,78 @@ def music_azimuth_spectrum_auto(fft2d_results):
     peak_angle = angles[peak_idx]
 
     return angles, spectrum_dB, peak_angle
+
+def music_2d_spectrum_auto(fft2d_results):
+    """
+    2D MUSIC 角度谱估计
+    坐标系：
+    - 方位角 az: 水平方向，0°=正前方，正值=右，负值=左
+    - 俯仰角 el: 垂直方向，0°=水平，正值=向上
+    阵列：垂直平面，X轴=水平，Y轴=垂直
+    """
+    n_ant, n_chirp, n_range = fft2d_results.shape
+    if n_ant != virtual_positions_m.shape[0]:
+        raise ValueError(f"通道数 {n_ant} 与虚拟天线数 {virtual_positions_m.shape[0]} 不匹配！")
+
+    # 1. 自动检测最强目标
+    rd_map = np.mean(np.abs(fft2d_results), axis=0)
+    doppler_bin, range_bin = np.unravel_index(np.argmax(rd_map), rd_map.shape)
+
+    # 2. 提取快拍数据
+    window_size = 5
+    start = max(0, doppler_bin - window_size // 2)
+    end = min(n_chirp, doppler_bin + window_size // 2 + 1)
+    X = fft2d_results[:, start:end, range_bin]
+    X = X.reshape(n_ant, -1)
+
+    if X.shape[1] < 2:
+        raise ValueError("快拍数不足")
+
+    # 3. 协方差矩阵 & 噪声子空间
+    R = X @ X.conj().T / X.shape[1]
+    eigvals, eigvecs = np.linalg.eigh(R)
+    idx = np.argsort(eigvals)[::-1]
+    eigvecs = eigvecs[:, idx]
+    K = 1
+    U_n = eigvecs[:, K:]
+
+    # 4. 构建 2D 导向矢量 - 关键修改
+    az_angles = np.linspace(-90, 90, 181)      # 方位角：水平方向
+    el_angles = np.linspace(-45, 45, 91)       # 俯仰角：垂直方向
+    AZ, EL = np.meshgrid(az_angles, el_angles)  # (91_el, 181_az)
+
+    az_rad = np.deg2rad(AZ)
+    el_rad = np.deg2rad(EL)
+
+    # 虚拟阵列归一化坐标
+    # [:, 0] = X轴 = 水平方向 → 对应方位角
+    # [:, 1] = Y轴 = 垂直方向 → 对应俯仰角
+    pos_norm = virtual_positions_m / wavelength
+
+    # 修正的导向矢量公式
+    # X方向（水平）对应 sin(az)
+    # Y方向（垂直）对应 sin(el)
+    phase = (
+        -pos_norm[:, 0][:, None, None] * np.sin(az_rad) +
+        pos_norm[:, 1][:, None, None] * np.sin(el_rad)
+    )
+    A = np.exp(-1j * 2 * np.pi * phase)
+
+    # 5. 计算 2D MUSIC 谱
+    UnUnH = U_n @ U_n.conj().T
+    N_el, N_az = AZ.shape
+    A_flat = A.reshape(4, -1)
+
+    proj = UnUnH @ A_flat
+    denom_flat = np.real(np.sum(A_flat.conj() * proj, axis=0))
+    denom = denom_flat.reshape(N_el, N_az)
+
+    spectrum = 1.0 / (denom + 1e-12)
+    spectrum_dB = 10 * np.log10(spectrum / np.max(spectrum))
+
+    # 找峰值
+    peak_i, peak_j = np.unravel_index(np.argmax(spectrum), spectrum.shape)
+    peak_el = el_angles[peak_i]  # 行索引对应俯仰角
+    peak_az = az_angles[peak_j]  # 列索引对应方位角
+
+    return AZ, EL, spectrum_dB, peak_az, peak_el

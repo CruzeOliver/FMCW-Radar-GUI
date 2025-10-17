@@ -438,16 +438,16 @@ class Ui_MainWindow(object):
         self.gridLayout_3.addWidget(self.widget_1DFFTtx1rx1, 1, 1, 1, 1)
 
         self.tabWidget_Display.addTab(self.tab_1DFFT, "")
-        self.tab_2 = QWidget()
-        self.tab_2.setObjectName(u"tab_2")
-        self.horizontalLayout_13 = QHBoxLayout(self.tab_2)
+        self.tab_Frequency = QWidget()
+        self.tab_Frequency.setObjectName(u"tab_Frequency")
+        self.horizontalLayout_13 = QHBoxLayout(self.tab_Frequency)
         self.horizontalLayout_13.setObjectName(u"horizontalLayout_13")
-        self.widget_frequency = QWidget(self.tab_2)
+        self.widget_frequency = QWidget(self.tab_Frequency)
         self.widget_frequency.setObjectName(u"widget_frequency")
 
         self.horizontalLayout_13.addWidget(self.widget_frequency)
 
-        self.tabWidget_Display.addTab(self.tab_2, "")
+        self.tabWidget_Display.addTab(self.tab_Frequency, "")
         self.tab_2DFFT = QWidget()
         self.tab_2DFFT.setObjectName(u"tab_2DFFT")
         self.gridLayout_4 = QGridLayout(self.tab_2DFFT)
@@ -473,6 +473,16 @@ class Ui_MainWindow(object):
         self.gridLayout_4.addWidget(self.widget_2DFFTtx1rx1, 1, 1, 1, 1)
 
         self.tabWidget_Display.addTab(self.tab_2DFFT, "")
+        self.tab_MUSICspectrum = QWidget()
+        self.tab_MUSICspectrum.setObjectName(u"tab_MUSICspectrum")
+        self.horizontalLayout_7 = QHBoxLayout(self.tab_MUSICspectrum)
+        self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
+        self.widget_MUSICspectrum = QWidget(self.tab_MUSICspectrum)
+        self.widget_MUSICspectrum.setObjectName(u"widget_MUSICspectrum")
+
+        self.horizontalLayout_7.addWidget(self.widget_MUSICspectrum)
+
+        self.tabWidget_Display.addTab(self.tab_MUSICspectrum, "")
         self.tab_PoitCloud = QWidget()
         self.tab_PoitCloud.setObjectName(u"tab_PoitCloud")
         self.horizontalLayout_3 = QHBoxLayout(self.tab_PoitCloud)
@@ -580,7 +590,7 @@ class Ui_MainWindow(object):
         self.pushButton_MoveAngel.clicked.connect(MainWindow.AngelMove)
         self.pushButton_Play.clicked.connect(MainWindow.PlayMatfile)
 
-        self.tabWidget_Display.setCurrentIndex(0)
+        self.tabWidget_Display.setCurrentIndex(1)
         self.tabWidget_Message.setCurrentIndex(0)
 
 
@@ -615,8 +625,9 @@ class Ui_MainWindow(object):
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_DirectWave), QCoreApplication.translate("MainWindow", u"Direct wave", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab__AmpPhase), QCoreApplication.translate("MainWindow", u"Amp/Phase", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_1DFFT), QCoreApplication.translate("MainWindow", u"1D_FFT", None))
-        self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Frequency", None))
+        self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_Frequency), QCoreApplication.translate("MainWindow", u"Frequency", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_2DFFT), QCoreApplication.translate("MainWindow", u"2D_FFT", None))
+        self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_MUSICspectrum), QCoreApplication.translate("MainWindow", u"Spectrum", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_PoitCloud), QCoreApplication.translate("MainWindow", u"Point Cloud", None))
         self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_log), QCoreApplication.translate("MainWindow", u"LogMessage", None))
         self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance / Angel", None))

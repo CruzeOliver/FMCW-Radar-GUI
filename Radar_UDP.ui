@@ -438,7 +438,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab_Placeholder">
        <attribute name="title">
@@ -574,7 +574,7 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="tab_2">
+      <widget class="QWidget" name="tab_Frequency">
        <attribute name="title">
         <string>Frequency</string>
        </attribute>
@@ -600,6 +600,16 @@
         </item>
         <item row="1" column="1">
          <widget class="QWidget" name="widget_2DFFTtx1rx1" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_MUSICspectrum">
+       <attribute name="title">
+        <string>Spectrum</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <item>
+         <widget class="QWidget" name="widget_MUSICspectrum" native="true"/>
         </item>
        </layout>
       </widget>

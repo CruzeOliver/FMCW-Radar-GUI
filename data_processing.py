@@ -16,46 +16,65 @@ CHIRP_T2 = 0   # 微秒
 CHIRP_PERIOD = CHIRP_T0 + CHIRP_T1 + CHIRP_T2  # Chirp周期，单位微秒
 
 virtual_positions_m = np.array([
-    [0.5 * wavelength, 0.0],              # TX0→RX0
-    [1.0 * wavelength, 0.0],              # TX0→RX1
-    [0.5 * wavelength, 0.5 * wavelength], # TX1→RX0
-    [1.0 * wavelength, 0.5 * wavelength]  # TX1→RX1
+    [0.5 * wavelength, 0.0],              # v0: TX0→RX0
+    [0.5 * wavelength, 0.5 * wavelength], # v2: TX1→RX0  (交换顺序)
+    [1.0 * wavelength, 0.0],              # v1: TX0→RX1
+    [1.0 * wavelength, 0.5 * wavelength]  # v3: TX1→RX1
 ])
 
 # 我们只关心方位角，所以取 x 坐标（水平方向），归一化为波长
 virtual_x_normalized = virtual_positions_m[:, 0] / wavelength  # [0.5, 1.0, 0.5, 1.0]
 
 """"
+TDM-MIMO 模式下的天线数据重组说明
     数据重组前：
-    chirp 0:
-      TX0RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX0RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-    chirp 1:
-      TX0RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX0RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-    ...
-    chirp (total_blocks-1):
-      TX0RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX0: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX0RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
-      TX1RX1: [I0, Q0, I1, Q1, ..., I(block_size-1), Q(block_size-1)]
+        chirp 0 (TX0 发射):
+        RX0: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+        RX1: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+
+        chirp 1 (TX1 发射):
+        RX0: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+        RX1: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+
+        chirp 2 (TX0 发射):
+        RX0: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+        RX1: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+
+        chirp 3 (TX1 发射):
+        RX0: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+        RX1: [I₀, Q₀, I₁, Q₁, ..., I_{N-1}, Q_{N-1}]
+
+        ...
+
+        chirp (total_chirp - 1):
+        （依 TX 交替规则）
 
     数据重组后：
-    [虚拟天线0][chirp 0][样点0], [虚拟天线0][chirp 0][样点1], ..., [虚拟天线0][chirp 0][样点block_size-1]
-    [虚拟天线0][chirp 1][样点0], [虚拟天线0][chirp 1][样点1], ..., [虚拟天线0][chirp 1][样点block_size-1]
-      ...
+        [虚拟天线 0][chirp 0][样点 0]
+        [虚拟天线 0][chirp 0][样点 1]
+        ...
+        [虚拟天线 0][chirp 0][样点 N-1]
+        [虚拟天线 0][chirp 1][样点 0]
+        ...
+        [虚拟天线 0][chirp M-1][样点 N-1]
 
-    [虚拟天线1][chirp 0][样点0], ..., [虚拟天线1][chirp total_blocks-1][样点block_size-1]
-      ...
+        [虚拟天线 1][chirp 0][样点 0]
+        ...
+        [虚拟天线 1][chirp M-1][样点 N-1]
 
-    [虚拟天线3][chirp 0][样点0], ..., [虚拟天线3][chirp total_blocks-1][样点block_size-1]
+        [虚拟天线 2][chirp 0][样点 0]
+        ...
+        [虚拟天线 2][chirp M-1][样点 N-1]
+
+        [虚拟天线 3][chirp 0][样点 0]
+        ...
+        [虚拟天线 3][chirp M-1][样点 N-1]
 
     天线映射：
-    原始顺序 [TX0RX0, TX1RX0, TX0RX1, TX1RX1] 映射为 [0, 2, 1, 3]
+        虚拟通道 0 → TX0 → RX0
+        虚拟通道 1 → TX0 → RX1
+        虚拟通道 2 → TX1 → RX0
+        虚拟通道 3 → TX1 → RX1
 
     实际天线排布
     --------------------
@@ -122,6 +141,45 @@ def reorder_frame(frame_bytes: bytes, chirp: int, sample: int,  window: np.ndarr
         iq = iq * window[np.newaxis, np.newaxis, :]
 
     return iq
+
+
+def reorder_frame_TDMMIMO(frame_bytes: bytes, total_chirp: int, sample: int, window: np.ndarray | None = None):
+    """
+    重排雷达原始帧为虚拟通道格式 (4, total_chirp//2, sample)
+
+    要求: total_chirp 为偶数（TDM-MIMO）
+    """
+    if total_chirp % 2 != 0:
+        raise ValueError("total_chirp 必须为偶数（TDM-MIMO 模式）")
+
+    n_rx = 2
+    expected_bytes = total_chirp * n_rx * sample * 4  # 4 = I(2B) + Q(2B)
+
+    # if len(frame_bytes) != expected_bytes:
+    #     raise ValueError(f"帧字节数错误: 期望 {expected_bytes}, 实际 {len(frame_bytes)}")
+
+    # 解析为 int16
+    arr_i16 = np.frombuffer(frame_bytes, dtype=np.int16)
+
+    # 重塑为 (chirp, rx, sample, IQ)
+    arr_iq = arr_i16.reshape(total_chirp, n_rx, sample, 2)
+    iq = arr_iq[..., 0] + 1j * arr_iq[..., 1]  # (total_chirp, 2, sample)
+
+    # 构建 4 个虚拟通道
+    v0 = iq[0::2, 0, :]  # TX0 → RX0
+    v1 = iq[0::2, 1, :]  # TX0 → RX1
+    v2 = iq[1::2, 0, :]  # TX1 → RX0
+    v3 = iq[1::2, 1, :]  # TX1 → RX1
+
+    iq_virtual = np.stack([v0, v1, v2, v3], axis=0)  # (4, total_chirp//2, sample)
+
+    if window is not None:
+        if len(window) != sample:
+            raise ValueError("window 长度必须等于 sample")
+        iq_virtual = iq_virtual * window[np.newaxis, np.newaxis, :]
+
+    return iq_virtual
+
 
 def Perform1D_FFT(iq):
     """
@@ -559,6 +617,8 @@ def estimate_az_el_from_fft2d(fft2d_results):
     )
     return az_deg, el_deg, (int(k_dop), int(k_rng)), extra
 
+
+
 ###==================== 基于最小二乘法进行IQ校准(2DFFT峰值点) ===================
 def amplitude_calibration(zij_vector: np.ndarray):
     """
@@ -894,81 +954,81 @@ def learn_calibration_parameters(iq_data_no_target):
     return np.array(calibration_omegas)  # shape: (4,)
 
 
-def music_azimuth_spectrum_auto(fft2d_results):
-    """
-    自动执行 MUSIC 角度谱估计，无需手动输入 range_bin/doppler_bin
+# def music_azimuth_spectrum_auto(fft2d_results):
+#     """
+#     自动执行 MUSIC 角度谱估计，无需手动输入 range_bin/doppler_bin
 
-    参数:
-        fft2d_results: shape=(4, n_chirp, n_range)，2D-FFT 后的数据
+#     参数:
+#         fft2d_results: shape=(4, n_chirp, n_range)，2D-FFT 后的数据
 
-    返回:
-        angles: 扫描角度数组
-        spectrum_dB: MUSIC 谱 (dB)
-        peak_angle: 估计的方位角
-        range_est: 估计的距离
-        velocity_est: 估计的速度
-    """
-    n_ant, n_chirp, n_range = fft2d_results.shape
+#     返回:
+#         angles: 扫描角度数组
+#         spectrum_dB: MUSIC 谱 (dB)
+#         peak_angle: 估计的方位角
+#         range_est: 估计的距离
+#         velocity_est: 估计的速度
+#     """
+#     n_ant, n_chirp, n_range = fft2d_results.shape
 
-    # -------------------------------
-    # 步骤1：生成 RD 谱图，找最强目标
-    # -------------------------------
-    # 对 4 个通道平均，得到粗略 RD 图
-    rd_map = np.mean(np.abs(fft2d_results), axis=0)  # (n_chirp, n_range)
+#     # -------------------------------
+#     # 步骤1：生成 RD 谱图，找最强目标
+#     # -------------------------------
+#     # 对 4 个通道平均，得到粗略 RD 图
+#     rd_map = np.mean(np.abs(fft2d_results), axis=0)  # (n_chirp, n_range)
 
-    # 找全局最大值位置
-    max_idx = np.unravel_index(np.argmax(rd_map), rd_map.shape)
-    doppler_bin, range_bin = max_idx  # 注意：fftshift 后 doppler_bin 是中心对称的
+#     # 找全局最大值位置
+#     max_idx = np.unravel_index(np.argmax(rd_map), rd_map.shape)
+#     doppler_bin, range_bin = max_idx  # 注意：fftshift 后 doppler_bin 是中心对称的
 
-    # -------------------------------
-    # 步骤2：提取快拍数据 X (4, L)
-    # -------------------------------
-    # 方法1：用 doppler_bin 附近多个单元作为快拍
-    window_size = 5
-    start = max(0, doppler_bin - window_size//2)
-    end = min(n_chirp, doppler_bin + window_size//2 + 1)
-    X = fft2d_results[:, start:end, range_bin]  # (4, L)
-    X = X.reshape(n_ant, -1)  # (4, L)
+#     # -------------------------------
+#     # 步骤2：提取快拍数据 X (4, L)
+#     # -------------------------------
+#     # 方法1：用 doppler_bin 附近多个单元作为快拍
+#     window_size = 5
+#     start = max(0, doppler_bin - window_size//2)
+#     end = min(n_chirp, doppler_bin + window_size//2 + 1)
+#     X = fft2d_results[:, start:end, range_bin]  # (4, L)
+#     X = X.reshape(n_ant, -1)  # (4, L)
 
-    if X.shape[1] < 2:
-        raise ValueError("快拍数不足，无法进行 MUSIC")
+#     if X.shape[1] < 2:
+#         raise ValueError("快拍数不足，无法进行 MUSIC")
 
-    # -------------------------------
-    # 步骤3：协方差矩阵 & 特征分解
-    # -------------------------------
-    R = X @ X.conj().T / X.shape[1]  # (4,4)
+#     # -------------------------------
+#     # 步骤3：协方差矩阵 & 特征分解
+#     # -------------------------------
+#     R = X @ X.conj().T / X.shape[1]  # (4,4)
 
-    eigvals, eigvecs = np.linalg.eigh(R)  # 升序
-    eigvals = eigvals[::-1]
-    eigvecs = eigvecs[:, ::-1]
+#     eigvals, eigvecs = np.linalg.eigh(R)  # 升序
+#     eigvals = eigvals[::-1]
+#     eigvecs = eigvecs[:, ::-1]
 
-    # 假设信号源数 K=1
-    K = 1
-    U_n = eigvecs[:, K:]  # 噪声子空间 (4, 3)
+#     # 假设信号源数 K=1
+#     K = 1
+#     U_n = eigvecs[:, K:]  # 噪声子空间 (4, 3)
 
-    # -------------------------------
-    # 步骤4：扫描方位角，计算 MUSIC 谱
-    # -------------------------------
-    angles = np.linspace(-90, 90, 1801)  # 0.1° 步进
-    spectrum = np.zeros_like(angles)
+#     # -------------------------------
+#     # 步骤4：扫描方位角，计算 MUSIC 谱
+#     # -------------------------------
+#     angles = np.linspace(-90, 90, 1801)  # 0.1° 步进
+#     spectrum = np.zeros_like(angles)
 
-    for i, angle in enumerate(angles):
-        theta = np.deg2rad(angle)
-        # 导向矢量：a(θ) = exp(-j*2π * (x_i/λ) * sinθ)
-        a = np.exp(-1j * 2 * np.pi * virtual_x_normalized * np.sin(theta))  # (4,)
-        a = a.reshape(-1, 1)
+#     for i, angle in enumerate(angles):
+#         theta = np.deg2rad(angle)
+#         # 导向矢量：a(θ) = exp(-j*2π * (x_i/λ) * sinθ)
+#         a = np.exp(-1j * 2 * np.pi * virtual_x_normalized * np.sin(theta))  # (4,)
+#         a = a.reshape(-1, 1)
 
-        # MUSIC 谱
-        denom = np.abs((a.conj().T @ U_n @ U_n.conj().T @ a).item())
-        spectrum[i] = 1 / (denom + 1e-12)
+#         # MUSIC 谱
+#         denom = np.abs((a.conj().T @ U_n @ U_n.conj().T @ a).item())
+#         spectrum[i] = 1 / (denom + 1e-12)
 
-    spectrum_dB = 10 * np.log10(spectrum / np.max(spectrum))
+#     spectrum_dB = 10 * np.log10(spectrum / np.max(spectrum))
 
-    # 找峰值
-    peak_idx = np.argmax(spectrum)
-    peak_angle = angles[peak_idx]
+#     # 找峰值
+#     peak_idx = np.argmax(spectrum)
+#     peak_angle = angles[peak_idx]
 
-    return angles, spectrum_dB, peak_angle
+#     return angles, spectrum_dB, peak_angle
 
 def music_2d_spectrum_auto(fft2d_results):
     """
@@ -1021,7 +1081,7 @@ def music_2d_spectrum_auto(fft2d_results):
     # X方向（水平）对应 sin(az)
     # Y方向（垂直）对应 sin(el)
     phase = (
-        -pos_norm[:, 0][:, None, None] * np.sin(az_rad) +
+        pos_norm[:, 0][:, None, None] * np.sin(az_rad) +
         pos_norm[:, 1][:, None, None] * np.sin(el_rad)
     )
     A = np.exp(-1j * 2 * np.pi * phase)

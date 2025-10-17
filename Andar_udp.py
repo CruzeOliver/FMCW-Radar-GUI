@@ -389,7 +389,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame(frame, chirp, sample, window=my_window)
+        iq = reorder_frame_TDMMIMO(frame, chirp*2, sample, window=my_window)
 
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
@@ -418,11 +418,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.last_display_time = current_time
         else:
             pass
-        az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
+        #az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+
+        az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
+        self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
+        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
 
         # 更新表格显示距离、角度计算结果
-        row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+        row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
         row_count = self.tableWidget_distance.rowCount()
@@ -684,7 +688,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame(frame_data_flat, chirp, sample,window=my_window)
+        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp*2, sample,window=my_window)
 
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
@@ -718,17 +722,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_fft2d(self.fft_results_2D, sample, chirp)
 
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
-        az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+        # az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
         # angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
         # self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-
-
-        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-az, size=10.0, color='g')
+        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
         # 更新表格显示距离、角度计算结果
-        row_data = [f"{self.current_index}",f"{az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+        row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                     f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
 

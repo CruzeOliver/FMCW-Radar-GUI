@@ -164,24 +164,6 @@ class PgDisplay:
             ref_phase = data['ref_phase_buffer']
             n = len(frames)
 
-            # 5. 更新曲线
-            # 1. 主相位曲线（例如黄色圆圈）
-            # data['phase'] = data['pw_phase'].plot(
-            #     pen=None,               # 【关键修改】移除连接线
-            #     symbol='o',             # 【关键修改】使用圆圈符号
-            #     symbolPen=pg.mkPen('y', width=1), # 设置符号边框颜色（例如黄色）
-            #     symbolBrush=pg.mkBrush(254, 254, 1), # 符号内部填充颜色（例如半透明黄色）
-            #     symbolSize=6            # 符号大小
-            # )
-
-            # # 2. 参考相位曲线（例如红色三角形）
-            # data['phase_ref'] = data['pw_phase'].plot(
-            #     pen=None,               # 【关键修改】移除连接线
-            #     symbol='o',             # 【关键修改】使用三角形符号
-            #     symbolPen=pg.mkPen('r', width=1), # 设置符号边框颜色（例如红色）
-            #     symbolBrush=pg.mkBrush(254, 1, 1), # 符号内部填充颜色（例如半透明红色）
-            #     symbolSize=6
-            # )
             data['phase'].setData(frames, self_phase)
             data['phase_ref'].setData(frames, ref_phase)
 

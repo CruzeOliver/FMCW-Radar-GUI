@@ -494,7 +494,7 @@
       </widget>
       <widget class="QWidget" name="tab_ConstellationDiagram">
        <attribute name="title">
-        <string>ConstellationDiagram</string>
+        <string>StarChart</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_6">
         <item row="0" column="0">
@@ -557,7 +557,7 @@
         </size>
        </property>
        <attribute name="title">
-        <string>1D_FFT</string>
+        <string>1DFFT</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_3">
         <item row="0" column="0">
@@ -586,7 +586,7 @@
       </widget>
       <widget class="QWidget" name="tab_2DFFT">
        <attribute name="title">
-        <string>2D_FFT</string>
+        <string>2DFFT</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_4">
         <item row="0" column="0">
@@ -607,9 +607,19 @@
        <attribute name="title">
         <string>Spectrum</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_7">
+       <layout class="QHBoxLayout" name="horizontalLayout_8">
         <item>
          <widget class="QWidget" name="widget_MUSICspectrum" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_2dMUSICspectrum">
+       <attribute name="title">
+        <string>2DSpectrum</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <item>
+         <widget class="QWidget" name="widget_2dMUSICspectrum" native="true"/>
         </item>
        </layout>
       </widget>

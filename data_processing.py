@@ -3,6 +3,87 @@ import scipy.io
 from datetime import datetime
 from scipy.signal import czt, get_window
 
+""""
+==================================================
+AOTM610LPJDH41 毫米波雷达天线布局与 TDM-MIMO 虚拟阵列说明
+==================================================
+
+一、硬件天线物理排布（根据实物）
+
+发射天线（TX）：2 个，较大贴片，水平排列（左右）
+  TX0：左侧
+  TX1：右侧
+  用于提供 azimuth（水平角）分辨率
+
+接收天线（RX）：2 个，较小贴片，垂直排列（上下）
+  RX0：下侧
+  RX1：上侧
+  用于提供 elevation（俯仰角）分辨率
+
+坐标系定义：
+  ↑ y（elevation）
+  |
+      ● RX1  (提供 y 轴位移)
+      |
+●     ● RX0  (y=0)
+TX0   TX1    (y=0)
+      x（azimuth）
+
+结论：
+  TX 水平 → azimuth 方向（x 轴）
+  RX 垂直 → elevation 方向（y 轴）
+
+二、TDM-MIMO 工作模式
+
+采用时分复用（TDM）方式交替发射：
+  第一个 chirp：仅 TX0 发射，RX0 和 RX1 同时接收
+  第二个 chirp：仅 TX1 发射，RX0 和 RX1 同时接收
+
+每帧包含多个 chirp 对（TX0 + TX1 为一组），形成 4 个虚拟通道：
+
+  虚拟通道 | 物理路径       | 说明
+  ---------|----------------|----------------------------
+  v0       | TX0 → RX0      | 基准通道
+  v1       | TX0 → RX1      | 同 TX0，不同 RX → elevation
+  v2       | TX1 → RX0      | 同 RX0，不同 TX → azimuth（需补偿）
+  v3       | TX1 → RX1      | 同 RX1，不同 TX → azimuth（需补偿）
+
+- 注意：TX0 与 TX1 发射存在时间延迟（通常为 CHIRP_PERIOD ≈ 108 μs），因此在计算 azimuth 相位差时必须进行 Doppler 相位补偿。
+
+三、虚拟阵列结构（Virtual Array）
+
+等效虚拟天线位置（以波长 λ 为单位，d = λ/2）：
+
+  虚拟通道 | 等效坐标 (x, y) | 方向贡献
+  ---------|------------------|-------------------
+  v0       | (0, 0)           | 原点
+  v1       | (0, 1)           | y 方向 → elevation
+  v2       | (1, 0)           | x 方向 → azimuth
+  v3       | (1, 1)           | 对角
+
+角度估计逻辑：
+
+1. Azimuth（水平角）：
+   - 来源：TX 水平间距（x 方向）
+   - 使用通道对：(v2, v0) 和 (v3, v1)
+   - 必须进行 Doppler 相位补偿（因 TDM 时序）
+   - 公式示例：
+        dphi_az = angle( mean( [v2_comp * conj(v0), v3_comp * conj(v1)] ) )
+
+2. Elevation（俯仰角）：
+   - 来源：RX 垂直间距（y 方向）
+   - 使用通道对：(v1, v0) 和 (v3, v2)
+   - 无需 Doppler 补偿（RX 同时接收）
+   - 公式示例：
+        dphi_el = angle( mean( [v1 * conj(v0), v3 * conj(v2)] ) )
+
+
+==================================================
+说明结束
+==================================================
+
+"""""
+
 #============ 雷达参数配置 =================
 
 C = 3e8  # 光速，单位 m/s
@@ -76,20 +157,6 @@ TDM-MIMO 模式下的天线数据重组说明
         虚拟通道 2 → TX1 → RX0
         虚拟通道 3 → TX1 → RX1
 
-    实际天线排布
-    --------------------
-    |                  |
-    |          TX1     |
-    |          TX0     |
-    |  RX0 RX1         |
-    |                  |
-    --------------------
-
-    虚拟天线排布
-    [ TX1RX0    TX1RX1 ]     -------->        [ 2  3 ]
-    [ TX0RX0    TX0RX1 ]     -------->        [ 0  1 ]
-
-
     注意：
     原始数据按 IQ 排列（即 I 在前，Q 在后）
     但是文档标注为 QI，但经实测和角度稳定性验证为 IQ
@@ -100,18 +167,6 @@ TDM-MIMO 模式下的天线数据重组说明
 
     用Python存储的mat文件是行优先，
     所以在用Python打开mat文件校验数据的时候，其数据格式应该如下：(32*2048) 采样点 256 chirp 32
-
-    T0R0 Chirp0 I    T0R0 Chirp0 I
-    T0R0 Chirp0 Q    T0R0 Chirp0 Q
-    T0R0 Chirp0 I           *
-    T0R0 Chirp0 Q           *
-    T0R0 Chirp0 I    T1R0 Chirp0 I
-    T0R0 Chirp0 Q    T1R0 Chirp0 Q     ****
-         *                  *
-         *                  *
-         *                  *
-    T0R0 Chirp0 I    T1R0 Chirp0 I
-    T0R0 Chirp0 Q    T1R0 Chirp0 Q
 
 """""
 #============ 雷达数据处理 =================
@@ -163,6 +218,7 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, total_chirp: int, sample: int, win
 
     # 重塑为 (chirp, rx, sample, IQ)
     arr_iq = arr_i16.reshape(total_chirp, n_rx, sample, 2)
+    #arr_iq = arr_i16.reshape(total_chirp, sample, n_rx, 2)
     iq = arr_iq[..., 0] + 1j * arr_iq[..., 1]  # (total_chirp, 2, sample)
 
     # 构建 4 个虚拟通道
@@ -540,95 +596,16 @@ def calculate_distance_from_iq(
 
 #=========角度计算函数，基于2DFFT结果进行角度估计=============
 
-# def estimate_az_el_from_fft2d(fft2d_results):
-#     """
-#     根据 2D FFT 结果估计 水平角(az) 与 俯仰角(el)
-#     - 使用全局变量 wavelength
-#     - 阵列为 2x2 平面阵，虚拟天线排布：
-#           [2 3]   (y=1)
-#           [0 1]   (y=0)
-#            x=0  x=1
-#     - 阵元间距固定为 λ/2
-#     - 自动选取能量最强的 (doppler, range) 点
-
-#     参数
-#     ----
-#     fft2d_results : np.ndarray
-#         形状 (4, n_chirp, n_range)，4 对应虚拟天线 [0,1,2,3]
-
-#     返回
-#     ----
-#     az_deg : float
-#         水平角（°）
-#     el_deg : float
-#         俯仰角（°）
-#     (k_dop, k_rng) : tuple[int, int]
-#         实际使用的 (doppler_idx, range_idx)
-#     extra : dict
-#         调试信息：相位差、空间正弦分量等
-#     """
-#     global wavelength
-#     d_spacing = wavelength / 2.0
-
-#     assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
-
-#     # 1) 找全局最强点
-#     power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)  # (n_chirp, n_range)
-#     k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
-
-#     # 2) 取该点 4 阵元复值
-#     v0 = fft2d_results[0, k_dop, k_rng]  # (x=0, y=0)
-#     v1 = fft2d_results[1, k_dop, k_rng]  # (x=1, y=0)
-#     v2 = fft2d_results[2, k_dop, k_rng]  # (x=0, y=1)
-#     v3 = fft2d_results[3, k_dop, k_rng]  # (x=1, y=1)
-
-#     # 3) 相位差（相邻阵元，取平均）
-#     dphi_x1 = np.angle(v1 * np.conj(v0))
-#     dphi_x2 = np.angle(v3 * np.conj(v2))
-#     dphi_x  = np.angle(np.mean(np.exp(1j * np.array([dphi_x1, dphi_x2]))))
-
-#     dphi_y1 = np.angle(v2 * np.conj(v0))
-#     dphi_y2 = np.angle(v3 * np.conj(v1))
-#     dphi_y  = np.angle(np.mean(np.exp(1j * np.array([dphi_y1, dphi_y2]))))
-
-#     # 4) 相位差转角度
-#     coef = wavelength / (2.0 * np.pi * d_spacing)
-#     s_x = coef * dphi_x  # = sin(az)*cos(el)
-#     s_y = coef * dphi_y  # = sin(el)
-
-#     s_y = float(np.clip(s_y, -0.999999, 0.999999))
-#     el = np.arcsin(s_y)
-#     cos_el = np.cos(el)
-#     if abs(cos_el) < 1e-6:
-#         cos_el = 1e-6
-#     ratio = float(np.clip(s_x / cos_el, -0.999999, 0.999999))
-#     az = np.arcsin(ratio)
-
-#     az_deg = np.degrees(az)
-#     el_deg = np.degrees(el)
-
-#     extra = dict(
-#         dphi_x=float(dphi_x),
-#         dphi_y=float(dphi_y),
-#         s_x=float(s_x),
-#         s_y=float(s_y),
-#         wavelength=wavelength,
-#         d_spacing=d_spacing
-#     )
-#     return az_deg, el_deg, (int(k_dop), int(k_rng)), extra
-
-
 def estimate_az_el_from_fft2d(fft2d_results):
     """
     根据 2D FFT 结果估计 水平角(az) 与 俯仰角(el)
-    - 使用全局变量 wavelength, CHIRP_PERIOD（单位: 微秒）
+    - 使用全局变量 wavelength
     - 阵列为 2x2 平面阵，虚拟天线排布：
           [2 3]   (y=1)
           [0 1]   (y=0)
            x=0  x=1
     - 阵元间距固定为 λ/2
     - 自动选取能量最强的 (doppler, range) 点
-    - 关键改进：对 TDM-MIMO 的 elevation 相位差进行 Doppler 运动补偿
 
     参数
     ----
@@ -646,52 +623,34 @@ def estimate_az_el_from_fft2d(fft2d_results):
     extra : dict
         调试信息：相位差、空间正弦分量等
     """
-    global wavelength, CHIRP_PERIOD  # 引入 chirp 周期（单位：微秒）
-
+    global wavelength
     d_spacing = wavelength / 2.0
-    assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
 
-    n_chirp = fft2d_results.shape[1]
-    n_range = fft2d_results.shape[2]
+    assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
 
     # 1) 找全局最强点
     power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)  # (n_chirp, n_range)
     k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
 
     # 2) 取该点 4 阵元复值
-    v0 = fft2d_results[0, k_dop, k_rng]  # TX0→RX0
-    v1 = fft2d_results[1, k_dop, k_rng]  # TX0→RX1
-    v2 = fft2d_results[2, k_dop, k_rng]  # TX1→RX0
-    v3 = fft2d_results[3, k_dop, k_rng]  # TX1→RX1
+    v0 = fft2d_results[0, k_dop, k_rng]  # (x=0, y=0)
+    v1 = fft2d_results[1, k_dop, k_rng]  # (x=1, y=0)
+    v2 = fft2d_results[2, k_dop, k_rng]  # (x=0, y=1)
+    v3 = fft2d_results[3, k_dop, k_rng]  # (x=1, y=1)
 
-    # 3) Azimuth: 同 TX 下 RX 差 → 时间对齐 ✅
-    dphi_x1 = np.angle(v1 * np.conj(v0))  # TX0: RX1 vs RX0
-    dphi_x2 = np.angle(v3 * np.conj(v2))  # TX1: RX1 vs RX0
-    dphi_x = np.angle(np.mean(np.exp(1j * np.array([dphi_x1, dphi_x2]))))
+    # 3) 相位差（相邻阵元，取平均）
+    dphi_x1 = np.angle(v1 * np.conj(v0))
+    dphi_x2 = np.angle(v3 * np.conj(v2))
+    dphi_x  = np.angle(np.mean(np.exp(1j * np.array([dphi_x1, dphi_x2]))))
 
-    # 4) Elevation 补偿：考虑 TDM-MIMO 时间差
-    delta_t_s = CHIRP_PERIOD * 1e-6  # 转为秒（如 108 μs → 0.000108 s）
-    prf = 1.0 / delta_t_s  # 脉冲重复频率
-    doppler_freq = k_dop * (prf / n_chirp)
-    if k_dop >= n_chirp // 2:
-        doppler_freq -= prf  # 负频率处理
+    dphi_y1 = np.angle(v2 * np.conj(v0))
+    dphi_y2 = np.angle(v3 * np.conj(v1))
+    dphi_y  = np.angle(np.mean(np.exp(1j * np.array([dphi_y1, dphi_y2]))))
 
-    # 每个 chirp 周期的相位变化（由于目标运动）
-    phase_per_chirp = 2 * np.pi * doppler_freq * delta_t_s
-
-    # 补偿 v2 和 v3：它们比 v0/v1 晚一个 chirp 周期（TX1 在 TX0 之后）
-    v2_compensated = v2 * np.exp(-1j * phase_per_chirp)
-    v3_compensated = v3 * np.exp(-1j * phase_per_chirp)
-
-    # 计算补偿后的 elevation 相位差
-    dphi_y1 = np.angle(v2_compensated * np.conj(v0))  # RX0: TX1 vs TX0
-    dphi_y2 = np.angle(v3_compensated * np.conj(v1))  # RX1: TX1 vs TX0
-    dphi_y = np.angle(np.mean(np.exp(1j * np.array([dphi_y1, dphi_y2]))))
-
-    # 5) 转换为角度
+    # 4) 相位差转角度
     coef = wavelength / (2.0 * np.pi * d_spacing)
-    s_x = coef * dphi_x  # sin(az)*cos(el)
-    s_y = coef * dphi_y  # sin(el)
+    s_y = coef * dphi_x  # 垂直相位差 dphi_x 对应 sin(el)
+    s_x = coef * dphi_y  # 水平相位差 dphi_y 对应 sin(az)*cos(el)
 
     s_y = float(np.clip(s_y, -0.999999, 0.999999))
     el = np.arcsin(s_y)
@@ -705,10 +664,81 @@ def estimate_az_el_from_fft2d(fft2d_results):
     el_deg = np.degrees(el)
 
     extra = dict(
-        dphi_x=float(dphi_x),
-        dphi_y=float(dphi_y),
+        dphi_az=float(dphi_y),  # dphi_y 是水平
+        dphi_el=float(dphi_x),  # dphi_x 是垂直
         s_x=float(s_x),
         s_y=float(s_y),
+        wavelength=wavelength,
+        d_spacing=d_spacing
+    )
+    return az_deg, el_deg, (int(k_dop), int(k_rng)), extra
+
+def estimate_az_el_from_fft2d2(fft2d_results):
+    """
+    根据 2D FFT 结果估计 水平角(az) 与 俯仰角(el)
+    - 硬件布局：TX0/TX1 水平（azimuth），RX0/RX1 垂直（elevation）
+    - 使用全局变量: wavelength, CHIRP_PERIOD (μs)
+    - 虚拟通道顺序: [v0=TX0→RX0, v1=TX0→RX1, v2=TX1→RX0, v3=TX1→RX1]
+    """
+    global wavelength, CHIRP_PERIOD
+
+    d_spacing = wavelength / 2.0
+    assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
+
+    n_chirp = fft2d_results.shape[1]
+    n_range = fft2d_results.shape[2]
+
+    # 1) 找最强点
+    power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)
+    k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
+
+    # 2) 取复值
+    v0 = fft2d_results[0, k_dop, k_rng]  # TX0→RX0
+    v1 = fft2d_results[1, k_dop, k_rng]  # TX0→RX1
+    v2 = fft2d_results[2, k_dop, k_rng]  # TX1→RX0
+    v3 = fft2d_results[3, k_dop, k_rng]  # TX1→RX1
+
+    # 3) AZIMUTH: 同 RX，不同 TX → 需 Doppler 补偿（TX0/TX1 水平）
+    delta_t_s = CHIRP_PERIOD * 1e-6  # 108 μs → 0.000108 s
+    prf = 1.0 / delta_t_s
+    doppler_freq = k_dop * (prf / n_chirp)
+    if k_dop >= n_chirp // 2:
+        doppler_freq -= prf
+    phase_per_chirp = 2 * np.pi * doppler_freq * delta_t_s
+
+    v2_comp = v2 * np.exp(-1j * phase_per_chirp)  # 补偿 TX1 比 TX0 晚
+    v3_comp = v3 * np.exp(-1j * phase_per_chirp)
+
+    dphi_az1 = np.angle(v2_comp * np.conj(v0))  # RX0: TX1 vs TX0 (azimuth)
+    dphi_az2 = np.angle(v3_comp * np.conj(v1))  # RX1: TX1 vs TX0 (azimuth)
+    dphi_az = np.angle(np.mean(np.exp(1j * np.array([dphi_az1, dphi_az2]))))
+
+    # 4) ELEVATION: 同 TX，不同 RX → 无需补偿（RX0/RX1 垂直）
+    dphi_el1 = np.angle(v1 * np.conj(v0))  # TX0: RX1 vs RX0 (elevation)
+    dphi_el2 = np.angle(v3 * np.conj(v2))  # TX1: RX1 vs RX0 (elevation)
+    dphi_el = np.angle(np.mean(np.exp(1j * np.array([dphi_el1, dphi_el2]))))
+
+    # 5) 转换为角度
+    coef = wavelength / (2.0 * np.pi * d_spacing)
+    s_az = coef * dphi_az  # sin(az) * cos(el)
+    s_el = coef * dphi_el  # sin(el)
+
+    s_el = float(np.clip(s_el, -0.999999, 0.999999))
+    el = np.arcsin(s_el)
+    cos_el = np.cos(el)
+    if abs(cos_el) < 1e-6:
+        cos_el = 1e-6
+    ratio = float(np.clip(s_az / cos_el, -0.999999, 0.999999))
+    az = np.arcsin(ratio)
+
+    az_deg = np.degrees(az)
+    el_deg = np.degrees(el)
+
+    extra = dict(
+        dphi_az=float(dphi_az),
+        dphi_el=float(dphi_el),
+        s_az=float(s_az),
+        s_el=float(s_el),
         wavelength=wavelength,
         d_spacing=d_spacing,
         chirp_period_us=CHIRP_PERIOD,
@@ -718,6 +748,7 @@ def estimate_az_el_from_fft2d(fft2d_results):
         k_rng=k_rng
     )
     return az_deg, el_deg, (int(k_dop), int(k_rng)), extra
+
 
 
 ###==================== 基于最小二乘法进行IQ校准(2DFFT峰值点) ===================

@@ -418,7 +418,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.last_display_time = current_time
         else:
             pass
+
         #az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+        #print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
 
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
@@ -723,6 +725,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
         # az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+        # print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
         # angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
         # self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)

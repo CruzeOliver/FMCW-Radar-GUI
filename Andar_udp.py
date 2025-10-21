@@ -504,6 +504,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 5. 断开连接并提示
             self.CloseFile()
             self.UDP_disconnect()
+            self.play_timer.stop()
+            self.pushButton_Play.setText("Play")
             QMessageBox.information(self, "校准完成", f"校准矩阵保存到：\n{filename}。")
 
     def LoadCalibratioMode(self):

@@ -171,70 +171,43 @@ TDM-MIMO 模式下的天线数据重组说明
 """""
 #============ 雷达数据处理 =================
 
-def reorder_frame(frame_bytes: bytes, chirp: int, sample: int,  window: np.ndarray | None = None):
-    #expected_bytes = chirp * n_ant * sample * 2 * 2  # chirp * 天线 * 样点 * (IQ) * int16
-    #if len(frame_bytes) != expected_bytes:
-        #raise ValueError(f"帧大小不匹配: got {len(frame_bytes)}, expect {expected_bytes}")
+# def reorder_frame_TDMMIMO(frame_bytes: bytes, total_chirp: int, sample: int, window: np.ndarray | None = None):
+#     """
+#     重排雷达原始帧为虚拟通道格式 (4, total_chirp//2, sample)
 
-    n_ant = 4  # 虚拟天线数固定为4
-    # 读取为 int16，右移4位（除以16）
-    arr_iq = np.frombuffer(frame_bytes, dtype=np.int16).astype(np.float32) / 16.0  # I,Q 交替
-    arr_iq = arr_iq.reshape(chirp, n_ant, sample, 2)  # (chirp, ant, sample, IQ)
+#     要求: total_chirp 为偶数（TDM-MIMO）
+#     """
+#     if total_chirp % 2 != 0:
+#         raise ValueError("total_chirp 必须为偶数（TDM-MIMO 模式）")
 
-    I = arr_iq[..., 0]
-    Q = arr_iq[..., 1]
-    iq = I + 1j * Q  # (chirp, ant, sample)
+#     n_rx = 2
+#     expected_bytes = total_chirp * n_rx * sample * 4  # 4 = I(2B) + Q(2B)
 
-    # 原始顺序 [TX0RX0, TX1RX0, TX0RX1, TX1RX1] → 虚拟天线 [0, 2, 1, 3]
-    virtual_ant_map = [0, 2, 1, 3]
-    iq = iq[:, virtual_ant_map, :]          # (chirp, 4, sample)
-    iq = np.transpose(iq, (1, 0, 2))        # -> (4, chirp, sample)
+#     # if len(frame_bytes) != expected_bytes:
+#     #     raise ValueError(f"帧字节数错误: 期望 {expected_bytes}, 实际 {len(frame_bytes)}")
 
-    if window is not None:
-        if len(window) != sample:
-            raise ValueError("window 长度必须等于 sample")
-        iq = iq * window[np.newaxis, np.newaxis, :]
+#     # 解析为 int16
+#     arr_i16 = np.frombuffer(frame_bytes, dtype=np.int16)
 
-    return iq
+#     # 重塑为 (chirp, rx, sample, IQ)
+#     arr_iq = arr_i16.reshape(total_chirp, n_rx, sample, 2)
+#     #arr_iq = arr_i16.reshape(total_chirp, sample, n_rx, 2)
+#     iq = arr_iq[..., 0] + 1j * arr_iq[..., 1]  # (total_chirp, 2, sample)
 
+#     # 构建 4 个虚拟通道
+#     v0 = iq[0::2, 0, :]  # TX0 → RX0
+#     v1 = iq[0::2, 1, :]  # TX0 → RX1
+#     v2 = iq[1::2, 0, :]  # TX1 → RX0
+#     v3 = iq[1::2, 1, :]  # TX1 → RX1
 
-def reorder_frame_TDMMIMO(frame_bytes: bytes, total_chirp: int, sample: int, window: np.ndarray | None = None):
-    """
-    重排雷达原始帧为虚拟通道格式 (4, total_chirp//2, sample)
+#     iq_virtual = np.stack([v0, v1, v2, v3], axis=0)  # (4, total_chirp//2, sample)
 
-    要求: total_chirp 为偶数（TDM-MIMO）
-    """
-    if total_chirp % 2 != 0:
-        raise ValueError("total_chirp 必须为偶数（TDM-MIMO 模式）")
+#     if window is not None:
+#         if len(window) != sample:
+#             raise ValueError("window 长度必须等于 sample")
+#         iq_virtual = iq_virtual * window[np.newaxis, np.newaxis, :]
 
-    n_rx = 2
-    expected_bytes = total_chirp * n_rx * sample * 4  # 4 = I(2B) + Q(2B)
-
-    # if len(frame_bytes) != expected_bytes:
-    #     raise ValueError(f"帧字节数错误: 期望 {expected_bytes}, 实际 {len(frame_bytes)}")
-
-    # 解析为 int16
-    arr_i16 = np.frombuffer(frame_bytes, dtype=np.int16)
-
-    # 重塑为 (chirp, rx, sample, IQ)
-    arr_iq = arr_i16.reshape(total_chirp, n_rx, sample, 2)
-    #arr_iq = arr_i16.reshape(total_chirp, sample, n_rx, 2)
-    iq = arr_iq[..., 0] + 1j * arr_iq[..., 1]  # (total_chirp, 2, sample)
-
-    # 构建 4 个虚拟通道
-    v0 = iq[0::2, 0, :]  # TX0 → RX0
-    v1 = iq[0::2, 1, :]  # TX0 → RX1
-    v2 = iq[1::2, 0, :]  # TX1 → RX0
-    v3 = iq[1::2, 1, :]  # TX1 → RX1
-
-    iq_virtual = np.stack([v0, v1, v2, v3], axis=0)  # (4, total_chirp//2, sample)
-
-    if window is not None:
-        if len(window) != sample:
-            raise ValueError("window 长度必须等于 sample")
-        iq_virtual = iq_virtual * window[np.newaxis, np.newaxis, :]
-
-    return iq_virtual
+#     return iq_virtual
 
 
 def Perform1D_FFT(iq):
@@ -595,33 +568,13 @@ def calculate_distance_from_iq(
     return R_fft, R_fft_macleod, R_czt_only, R_combo, diag
 
 #=========角度计算函数，基于2DFFT结果进行角度估计=============
-
 def estimate_az_el_from_fft2d(fft2d_results):
     """
-    根据 2D FFT 结果估计 水平角(az) 与 俯仰角(el)
-    - 使用全局变量 wavelength
-    - 阵列为 2x2 平面阵，虚拟天线排布：
-          [2 3]   (y=1)
-          [0 1]   (y=0)
-           x=0  x=1
-    - 阵元间距固定为 λ/2
-    - 自动选取能量最强的 (doppler, range) 点
+    (v3 - 修正物理坐标系)
 
-    参数
-    ----
-    fft2d_results : np.ndarray
-        形状 (4, n_chirp, n_range)，4 对应虚拟天线 [0,1,2,3]
-
-    返回
-    ----
-    az_deg : float
-        水平角（°）
-    el_deg : float
-        俯仰角（°）
-    (k_dop, k_rng) : tuple[int, int]
-        实际使用的 (doppler_idx, range_idx)
-    extra : dict
-        调试信息：相位差、空间正弦分量等
+    根据症状"左右移动会改变 dphi_y"，我们断定：
+    - X 轴 (水平 / Azimuth)  = TX 轴 (dphi_y)
+    - Y 轴 (垂直 / Elevation) = RX 轴 (dphi_x)
     """
     global wavelength
     d_spacing = wavelength / 2.0
@@ -629,45 +582,46 @@ def estimate_az_el_from_fft2d(fft2d_results):
     assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
 
     # 1) 找全局最强点
-    power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)  # (n_chirp, n_range)
+    power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)
     k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
 
     # 2) 取该点 4 阵元复值
-    v0 = fft2d_results[0, k_dop, k_rng]  # (x=0, y=0)
-    v1 = fft2d_results[1, k_dop, k_rng]  # (x=1, y=0)
-    v2 = fft2d_results[2, k_dop, k_rng]  # (x=0, y=1)
-    v3 = fft2d_results[3, k_dop, k_rng]  # (x=1, y=1)
+    v0 = fft2d_results[0, k_dop, k_rng]  # (TX0->RX0)
+    v1 = fft2d_results[1, k_dop, k_rng]  # (TX0->RX1)
+    v2 = fft2d_results[2, k_dop, k_rng]  # (TX1->RX0)
+    v3 = fft2d_results[3, k_dop, k_rng]  # (TX1->RX1)
 
     # 3) 相位差（相邻阵元，取平均）
-    dphi_x1 = np.angle(v1 * np.conj(v0))
-    dphi_x2 = np.angle(v3 * np.conj(v2))
-    dphi_x  = np.angle(np.mean(np.exp(1j * np.array([dphi_x1, dphi_x2]))))
 
-    dphi_y1 = np.angle(v2 * np.conj(v0))
-    dphi_y2 = np.angle(v3 * np.conj(v1))
-    dphi_y  = np.angle(np.mean(np.exp(1j * np.array([dphi_y1, dphi_y2]))))
+    # [物理垂直轴] (Elevation)
+    dphi_rx = np.angle(v1 * np.conj(v0)) # (v1,v0)
+    dphi_rx_2 = np.angle(v3 * np.conj(v2)) # (v3,v2)
+    dphi_rx_avg  = np.angle(np.mean(np.exp(1j * np.array([dphi_rx, dphi_rx_2]))))
 
-    # 4) 相位差转角度
-    coef = wavelength / (2.0 * np.pi * d_spacing)
-    s_y = coef * dphi_x  # 垂直相位差 dphi_x 对应 sin(el)
-    s_x = coef * dphi_y  # 水平相位差 dphi_y 对应 sin(az)*cos(el)
+    # [物理水平轴] (Azimuth)
+    dphi_tx = np.angle(v2 * np.conj(v0)) # (v2,v0)
+    dphi_tx_2 = np.angle(v3 * np.conj(v1)) # (v3,v1)
+    dphi_tx_avg  = np.angle(np.mean(np.exp(1j * np.array([dphi_tx, dphi_tx_2]))))
 
-    s_y = float(np.clip(s_y, -0.999999, 0.999999))
-    el = np.arcsin(s_y)
-    cos_el = np.cos(el)
-    if abs(cos_el) < 1e-6:
-        cos_el = 1e-6
-    ratio = float(np.clip(s_x / cos_el, -0.999999, 0.999999))
-    az = np.arcsin(ratio)
+    # 4) [!!! 最终修正 !!!] 相位差转角度
 
-    az_deg = np.degrees(az)
-    el_deg = np.degrees(el)
+    # sin(theta) = dphi / pi  (当 d = lambda / 2)
+
+    # 方位角 (Azimuth) 来自 TX 轴
+    s_az = dphi_tx_avg / np.pi
+    s_az = float(np.clip(s_az, -0.999999, 0.999999))
+    az_deg = np.degrees(np.arcsin(s_az))
+
+    # 俯仰角 (Elevation) 来自 RX 轴
+    s_el = dphi_rx_avg / np.pi
+    s_el = float(np.clip(s_el, -0.999999, 0.999999))
+    el_deg = np.degrees(np.arcsin(s_el))
 
     extra = dict(
-        dphi_az=float(dphi_y),  # dphi_y 是水平
-        dphi_el=float(dphi_x),  # dphi_x 是垂直
-        s_x=float(s_x),
-        s_y=float(s_y),
+        dphi_az=float(dphi_tx_avg),  # 水平
+        dphi_el=float(dphi_rx_avg),  # 垂直
+        s_az=float(s_az),
+        s_el=float(s_el),
         wavelength=wavelength,
         d_spacing=d_spacing
     )
@@ -1162,7 +1116,7 @@ def learn_calibration_parameters(iq_data_no_target):
 
 #     return angles, spectrum_dB, peak_angle
 
-def music_2d_spectrum_auto(fft2d_results):
+def music_2d_spectrum_auto2(fft2d_results):
     """
     2D MUSIC 角度谱估计
     坐标系：
@@ -1222,6 +1176,81 @@ def music_2d_spectrum_auto(fft2d_results):
     UnUnH = U_n @ U_n.conj().T
     N_el, N_az = AZ.shape
     A_flat = A.reshape(4, -1)
+
+    proj = UnUnH @ A_flat
+    denom_flat = np.real(np.sum(A_flat.conj() * proj, axis=0))
+    denom = denom_flat.reshape(N_el, N_az)
+
+    spectrum = 1.0 / (denom + 1e-12)
+    spectrum_dB = 10 * np.log10(spectrum / np.max(spectrum))
+
+    # 找峰值
+    peak_i, peak_j = np.unravel_index(np.argmax(spectrum), spectrum.shape)
+    peak_el = el_angles[peak_i]  # 行索引对应俯仰角
+    peak_az = az_angles[peak_j]  # 列索引对应方位角
+
+    return AZ, EL, spectrum_dB, peak_az, peak_el
+
+def music_2d_spectrum_auto(fft_results_1D):
+    """
+    (v2 - 已修正)
+    2D MUSIC 角度谱估计 (在 距离-Chirp 域执行)
+
+    输入: fft_results_1D (1D FFT 的结果)
+    形状: (n_ant, n_chirp, n_range) e.g., (4, 16, 256)
+    """
+    n_ant, n_chirp, n_range = fft_results_1D.shape
+
+    # 检查: 确保天线数 (4) 与虚拟阵列位置匹配
+    if n_ant != virtual_positions_m.shape[0]:
+        raise ValueError(f"通道数 {n_ant} 与虚拟天线数 {virtual_positions_m.shape[0]} 不匹配！")
+
+    # 检查: 快拍数 (n_chirp) 必须大于天线数
+    if n_chirp < n_ant:
+        raise ValueError(f"快拍数 (n_chirp={n_chirp}) 必须大于天线数 (n_ant={n_ant})")
+
+    # --- 1. 自动检测最强目标 ---
+    # 在 距离-Chirp 矩阵上求平均来找最强的距离仓
+    # (我们不再关心多普勒)
+    range_profile = np.mean(np.abs(fft_results_1D), axis=(0, 1)) # (n_range,)
+    range_bin = np.argmax(range_profile)
+
+    # --- 2. 提取快拍数据 ---
+    # [!!! 关键修改 !!!]
+    # 快拍 (Snapshots) 是 n_chirp 个 Chirp。
+    # X 的形状是 (n_ant, n_chirp) e.g., (4, 16)
+    X = fft_results_1D[:, :, range_bin]
+
+    # --- 3. 协方差矩阵 & 噪声子空间 ---
+    # (此步骤不变)
+    R = X @ X.conj().T / n_chirp  # (4, 4)
+    eigvals, eigvecs = np.linalg.eigh(R)
+    idx = np.argsort(eigvals)[::-1]
+    eigvecs = eigvecs[:, idx]
+    K = 1  # 假设 1 个目标
+    U_n = eigvecs[:, K:] # (4, 3)
+
+    # --- 4. 构建 2D 导向矢量 ---
+    # (此步骤不变)
+    az_angles = np.linspace(-90, 90, 181)     # 方位角
+    el_angles = np.linspace(-45, 45, 91)     # 俯仰角
+    AZ, EL = np.meshgrid(az_angles, el_angles) # (91, 181)
+    az_rad = np.deg2rad(AZ)
+    el_rad = np.deg2rad(EL)
+
+    pos_norm = virtual_positions_m / wavelength
+
+    phase = (
+        pos_norm[:, 0][:, None, None] * np.sin(az_rad) +
+        pos_norm[:, 1][:, None, None] * np.sin(el_rad)
+    )
+    A = np.exp(-1j * 2 * np.pi * phase) # (4, 91, 181)
+
+    # --- 5. 计算 2D MUSIC 谱 ---
+    # (此步骤不变)
+    UnUnH = U_n @ U_n.conj().T
+    N_el, N_az = AZ.shape
+    A_flat = A.reshape(n_ant, -1) # (4, 91*181)
 
     proj = UnUnH @ A_flat
     denom_flat = np.real(np.sum(A_flat.conj() * proj, axis=0))

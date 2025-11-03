@@ -83,7 +83,7 @@ class DataAssembler:
             # 计算一帧字节数
             if txrx == 4:
                 # 4 虚拟天线 * chirp * sample * (I/Q各int16=4字节)
-                total_bytes = 4 * chirp_num * sample_point * 2 *2
+                total_bytes = 2 * chirp_num * sample_point * 2 *2
             else:
                 # txrx==1 或默认：每样本4字节
                 total_bytes = chirp_num * sample_point * 2 *2

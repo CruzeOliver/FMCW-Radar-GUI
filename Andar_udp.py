@@ -389,7 +389,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame_TDMMIMO(frame, chirp*2, sample, window=my_window)
+        iq = reorder_frame_TDMMIMO(frame, chirp, sample, window=my_window)
 
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
@@ -692,7 +692,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp*2, sample,window=my_window)
+        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample,window=my_window)
 
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)

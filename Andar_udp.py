@@ -14,62 +14,61 @@ from data_processing import *
 import motorController
 from udp_handler import *
 from display_pg import PgDisplay
+LISTEN_IP = "0.0.0.0"        # 监听所有网卡
+LISTEN_PORT = 8888           # 本地接收端口
+PEER_IP = "192.168.1.55"   # 雷达设备IP
+PEER_PORT = 6666           # 若需主动发送，发往的端口
+PKT_SIZE = 1024              # 每个UDP包固定 1024B
 
 # ================== Qt 信号总线 ==================
 class Bus(QObject):
     log         = Signal(str)     # log日志重定向
-    frame_ready = Signal(bytes, int, int, int)# frame, sample_point, chirp_num, txrx
 
 # ================== 接收线程（Python threading + socket） ==================
-class UdpRxThread(threading.Thread):
-    def __init__(self, ip: str, port: int, bus: Bus):
+class UdpReceiver(threading.Thread):
+    """(生产者) 只负责监听UDP端口，将原始包放入 raw_queue"""
+    def __init__(self, ip: str, port: int, raw_queue: queue.Queue):
         super().__init__(daemon=True)
         self.ip, self.port = ip, port
-        self.bus = bus
+        self.raw_queue = raw_queue
         self._stop_evt = threading.Event()
         self._sock = None
-        self._asm  = DataAssembler(bus)
+        self.peer_ip = PEER_IP
 
     def run(self):
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._sock.bind((self.ip, self.port))      # 0.0.0.0:8888
-            self._sock.settimeout(0.5)                 # 短超时便于退出
-            self.bus.log.emit(f"[OK] 监听 {self.ip}:{self.port} ...")
+            self._sock.bind((self.ip, self.port))
+            self._sock.settimeout(0.5)
+            print(f"[UdpReceiver] 监听 {self.ip}:{self.port} ...")
         except Exception as e:
-            self.bus.log.emit(f"[ERR] 绑定失败: {e!r}")
+            print(f"[UdpReceiver] 绑定失败: {e!r}")
+            self.raw_queue.put(('__recv_error__', f"绑定失败: {e!r}"))
             return
 
         while not self._stop_evt.is_set():
             try:
-                data, (sip, sport) = self._sock.recvfrom(PKT_SIZE)
+                data, (sip, sport) = self._sock.recvfrom(PKT_SIZE * 2) # 缓冲区稍大
+
+                # (来自B方案) 过滤IP
+                if sip != self.peer_ip:
+                    continue
+
+                # 将原始包放入队列，由 RobustFrameAssembler 处理
+                self.raw_queue.put((time.time(), data))
+
             except socket.timeout:
                 continue
             except OSError:
                 break
-            if sip != PEER_IP:
-                continue
-            res = self._asm.process(data)
-            if res is not None:
-                frame, sample, chirp, txrx = res
-                self.bus.frame_ready.emit(frame, sample, chirp, txrx)
-        try:
-            if self._sock:
-                self._sock.close()
-        finally:
-            self._sock = None
-            self.bus.log.emit("[OK] 接收线程已退出")
+
+        if self._sock:
+            self._sock.close()
+        print("[UdpReceiver] 接收线程已退出")
 
     def stop(self):
         self._stop_evt.set()
-        # 唤醒一次阻塞的 recvfrom，加速退出
-        try:
-            tmp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            tmp.sendto(b"", ("127.0.0.1", self.port))
-            tmp.close()
-        except Exception:
-            pass
 
 # ================== 主窗口初始化 ==================
 class MyMainForm(QMainWindow, Ui_MainWindow):
@@ -88,8 +87,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.comboBox_MatFrom.addItems(options)
         self.comboBox_MatFrom.setCurrentIndex(1)
         # UDP网络读取相关变量
-        self.rx_thread = None
-        self.tx_sock   = None
+        self.raw_queue = None
+        self.frame_queue = None
+        self.receiver_thread = None
+        self.assembler_thread = None
+        self.tx_sock = None
+        self.frame_consumer_timer = QTimer(self)
+        self.frame_consumer_timer.timeout.connect(self.check_frame_queue)
         # mat文件存读相关变量
         self.save_filename = None
         self.buffer = [] # 大缓存：暂存未保存的帧
@@ -131,7 +135,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 信号总线连接
         self.bus = Bus()
         self.bus.log.connect(self._log)
-        self.bus.frame_ready.connect(self.on_frame_ready)
 
         # 创建菜单
         self.create_menus()
@@ -347,98 +350,147 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def UDP_connect(self):
         if self.checkBox_IsSave.isChecked() and not self.save_filename:
             self.save_filename = f"{self.generate_unique_time()}_raw_data_py.mat"
-        self.UDP_disconnect()  # 防止重复
-        self.rx_thread = UdpRxThread(LISTEN_IP, LISTEN_PORT, self.bus)
-        self.rx_thread.start()
+        self.UDP_disconnect()  # 先执行断开，确保清理干净
         try:
+            # 1. 创建队列
+            self.raw_queue = queue.Queue(maxsize=1024)
+            self.frame_queue = queue.Queue(maxsize=32)
+            # 2. 启动生产者 (UdpReceiver)
+            self.receiver_thread = UdpReceiver(LISTEN_IP, LISTEN_PORT, self.raw_queue)
+            self.receiver_thread.start()
+            # 3. 启动消费者 (RobustFrameAssembler)
+            self.assembler_thread = RobustFrameAssembler(self.raw_queue, self.frame_queue, timeout=1.0)
+            self.assembler_thread.start()
+            # 4. 启动 QTimer 来从 frame_queue 消费
+            self.frame_consumer_timer.start(10) # 每 10ms 检查一次
+            # 5. 准备发送用的 Socket
             self.tx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.bus.log.emit(f"[OK] 发送目标 {PEER_IP}:{PEER_PORT}")
+
             self.pushButton_Connect.setEnabled(False)
             self.pushButton_Disconnect.setEnabled(True)
-        except Exception as e:
-            self.bus.log.emit(f"[ERR] 创建发送 socket 失败: {e!r}")
-            self.tx_sock = None
+            self.bus.log.emit("[OK] 已连接")
 
-    # ---- 断开：停线程 + 关socket ----
+        except Exception as e:
+            self.bus.log.emit(f"[ERR] 连接失败: {e!r}")
+            self.UDP_disconnect() # 出错时回滚
+
+    # ---- 断开：停止Timer + 两个线程 + 关socket ----
     def UDP_disconnect(self):
-        if self.rx_thread:
-            self.rx_thread.stop()
-            self.rx_thread.join(timeout=2.0)
-            self.rx_thread = None
+        # 1. 停止 QTimer
+        self.frame_consumer_timer.stop()
+        # 2. 停止消费者线程 (assembler)
+        if self.assembler_thread:
+            self.assembler_thread.stop()
+            self.assembler_thread.join(timeout=1.0)
+            self.assembler_thread = None
+        # 3. 停止生产者线程 (receiver)
+        if self.receiver_thread:  # 替换 self.rx_thread
+            self.receiver_thread.stop()
+            self.receiver_thread.join(timeout=1.0) # join() 等待线程真正退出
+            self.receiver_thread = None
+        # 4. 关闭发送 socket
         if self.tx_sock:
             try: self.tx_sock.close()
             except Exception: pass
             self.tx_sock = None
+        # 5. 清理队列
+        self.raw_queue = None
+        self.frame_queue = None
         self.bus.log.emit("[OK] 已断开")
         self.pushButton_Connect.setEnabled(True)
         self.pushButton_Disconnect.setEnabled(False)
+
         if self.checkBox_IsSave.isChecked():
             self.save_buffer_to_mat()  # 保存剩余缓存
 
     # ---- 整帧到达回调函数 ----
-    def on_frame_ready(self, frame: bytes, sample: int, chirp: int, txrx: int):
+    def check_frame_queue(self):
         """
-        数据格式正确,接收到一帧数据后回调函数
+        (主线程) 由 QTimer 调用
         """
-         # 保存到 .mat 文件
-        if self.checkBox_IsSave.isChecked():
-            self.save_to_buffer(frame,sample,chirp)
+        if not self.frame_queue:
+            return # 尚未连接
+        try:
+            # 1. 从队列中非阻塞地获取一个项目
+            item = self.frame_queue.get_nowait()
+        except queue.Empty:
+            return
+        # 2. 检查是否是错误/日志消息
+        if isinstance(item, tuple) and item and item[0] == '__error__':
+            self.bus.log.emit(f"{item[1]}") # 将线程中的日志转发到GUI
+            return
+        # 3. 解包数据 (这现在匹配了 on_frame_ready 的参数)
+        fid, frame, sample, chirp, txrx = item
+        # 4. --- 数据处理 ---
+        try:
+            # 保存到 .mat 文件
+            if self.checkBox_IsSave.isChecked():
+                self.save_to_buffer(frame,sample,chirp)
 
-        current_time = time.time()
-        if self.checkBox_HammingWindow.isChecked():
-            my_window = np.hamming(sample)
-        else:
-            my_window = None
-        iq = reorder_frame_TDMMIMO(frame, chirp, sample, window=my_window)
+            current_time = time.time()
+            if self.checkBox_HammingWindow.isChecked():
+                my_window = np.hamming(sample)
+            else:
+                my_window = None
 
-        self.fft_results_1D = Perform1D_FFT(iq)
-        self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
-        self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
-        R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
-        self.display.update_frequency(iq,diag)
-        if self.checkBox_CalibrationMode.isChecked():
-            #得到2DFFT的峰值索引 对应的zij向量
-            peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
-            zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-            self.calibrate_on_demand(zij_vector)
-
-        # 根据2dfft结果 将TX和RX 进行分开幅相校准
-        if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
-            iq = apply_channel_calibration(iq, self.alpha_matrix, self.phi_matrix)
+            # chirp = chirp//2  # 原始数据是 I/Q 交错的，所以样本数减半
+            # iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
+            sample = sample // 2
+            iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
+            self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
+            R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
+            self.display.update_frequency(iq,diag)
 
-        # 判断是否满足显示间隔
-        if current_time - self.last_display_time > self.display_interval:
-            self.display.update_adc4(iq, chirp, sample)
-            self.display.update_constellations(iq, remove_dc=True, max_points=3000, show_fit=True)
-            self.display.update_amp_phase(iq, chirp=0, decimate=1, unwrap_phase=False)
-            self.display.update_fft1d(self.fft_results_1D, sample)
-            self.display.update_fft2d(self.fft_results_2D, sample, chirp)
-            self.last_display_time = current_time
-        else:
-            pass
+            if self.checkBox_CalibrationMode.isChecked():
+                #得到2DFFT的峰值索引 对应的zij向量
+                peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
+                zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
+                self.calibrate_on_demand(zij_vector)
 
-        #az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-        #print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
+            # 根据2dfft结果 将TX和RX 进行分开幅相校准
+            if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
+                iq = apply_channel_calibration(iq, self.alpha_matrix, self.phi_matrix)
+                self.fft_results_1D = Perform1D_FFT(iq)
+                self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
 
-        az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
-        self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
-        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
+            # 判断是否满足显示间隔
+            if current_time - self.last_display_time > self.display_interval:
+                self.display.update_adc4(iq, chirp, sample)
+                self.display.update_constellations(iq, remove_dc=True, max_points=3000, show_fit=True)
+                self.display.update_amp_phase(iq, chirp=0, decimate=1, unwrap_phase=False)
+                self.display.update_fft1d(self.fft_results_1D, sample)
+                self.display.update_fft2d(self.fft_results_2D, sample, chirp)
+                self.last_display_time = current_time
+            else:
+                pass
 
-        # 更新表格显示距离、角度计算结果
-        row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                    f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
-                    f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
-        row_count = self.tableWidget_distance.rowCount()
-        self.tableWidget_distance.insertRow(row_count)
-        for i, value in enumerate(row_data):
-            item = QTableWidgetItem(value)
-            item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
-            self.tableWidget_distance.setItem(row_count, i, item)
-        self.tableWidget_distance.scrollToBottom()# 滚动到底部
-        self.current_index += 1
+            az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+            print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
+
+            az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
+            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
+            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+            self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
+
+            # 更新表格显示距离、角度计算结果
+            row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+                        f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                        f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
+            row_count = self.tableWidget_distance.rowCount()
+            self.tableWidget_distance.insertRow(row_count)
+            for i, value in enumerate(row_data):
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
+                self.tableWidget_distance.setItem(row_count, i, item)
+            self.tableWidget_distance.scrollToBottom()# 滚动到底部
+            self.current_index += 1
+
+        except Exception as e:
+            # (重要) 捕捉处理过程中发生的任何错误，防止GUI崩溃
+            self.bus.log.emit(f"⛔ 帧 {fid} 处理失败: {e}")
 
 # ================== 校准部分内容 ==================
     """
@@ -529,41 +581,45 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 # ================== 文件读取部分内容 ==================
     def save_to_buffer(self, frame_data, sample_number, chirp_number):
         """
-        每次接收到新的一帧数据，将数据放入大缓存中
+          每次接收到新的一帧数据，将数据放入大缓存中
         """
         try:
-            # 获取当前时间戳，确保每一帧有唯一的变量名
-            timestamp_with_ms = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
-
-            # 计算预期的数据大小：4通道，I/Q每个16bit，每个数据点2字节
-            num_antennas = 4  # 4通道
-            num_iq = 2        # I/Q 每个16bit = 2字节
+            # 1. 检查数据大小 (你的检查逻辑是正确的)
+            num_antennas = 2  # 2 TX * 2 RX
+            num_iq = 2        # I/Q
             expected_size = sample_number * chirp_number * num_antennas * num_iq * np.dtype(np.int16).itemsize
 
-            # 检查数据的大小
             if len(frame_data) != expected_size:
                 print(f"Error: Unexpected buffer size! Expected: {expected_size}, Actual: {len(frame_data)}")
+                self.bus.log.emit(f"⚠️ 保存失败: 数据大小不匹配")
                 return False
 
-            # 转换为 int16 数组
+            # 2. 转换为 int16 数组
             raw_iq = np.frombuffer(frame_data, dtype=np.int16)
 
-            # 每帧有 2048 个数据点，且每帧是 32 行，每行 2048 列
-            num_rows = 32
-            num_cols = 2048
-            total_frames = len(raw_iq) // (num_rows * num_cols)  # 计算帧数
+            try:
+                num_rows = chirp_number
+                num_cols = sample_number * num_antennas * num_iq
+                reshaped_data = raw_iq.reshape((num_rows, num_cols))
+            except Exception as e:
+                print(f"Reshape 失败: {e}. 形状: {(num_rows, num_cols)}, 总数: {raw_iq.size}")
+                self.bus.log.emit(f"⚠️ 保存失败: Reshape 失败")
+                return False
 
-            # 将数据重塑为每帧 32x2048 的 2D 数组
-            reshaped_data = raw_iq[:total_frames * num_rows * num_cols].reshape((total_frames, num_rows, num_cols))
+            # 4. 将数据和配置一起存入缓存
+            timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+            frame_name = f"frame_{timestamp}"
 
-            # 将当前帧的数据添加到缓存中
-            for i in range(total_frames):
-                frame_timestamp = f"frame_{timestamp_with_ms}_{i}"  # 为每一帧生成唯一的变量名
-                self.buffer.append({frame_timestamp: reshaped_data[i]})
+            frame_struct = {
+                'data': reshaped_data,  # (chirp, sample*8) 数组
+                'sample': sample_number,
+                'chirp': chirp_number
+            }
 
-            # 如果缓存达到最大大小，自动保存到文件
+            self.buffer.append({frame_name: frame_struct}) # 保存为字典
+
+            # 5. 如果缓存达到最大大小，自动保存到文件
             if len(self.buffer) >= 100:
-                #print("缓存已满，开始保存数据...")
                 self.save_buffer_to_mat()
 
             return True
@@ -625,15 +681,24 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             data = scipy.io.loadmat(filename) # 读取 .mat 文件
             self.frame_all_data = data
 
-            self.bus.log.emit(f"读取文件：{filename}")# 打印文件中包含的变量
+            self.bus.log.emit(f"读取文件：{filename}")
 
             # 获取所有包含帧数据的变量（以 "frame" 开头的变量名）
             self.frame_data_list = [key for key in data.keys() if key.startswith('frame')]
-            #self.bus.log.emit(f"找到 {len(self.frame_data_list)} 帧数据变量")
+            self.frame_data_list.sort() # [推荐] 按时间排序
+
+            self.bus.log.emit(f"找到 {len(self.frame_data_list)} 帧数据")
             self.current_index = 0  # 初始化为第一帧
+
             # 获取第一帧的数据
-            frame_data = self.frame_all_data[self.frame_data_list[self.current_index]]
-            self.show_matrix(frame_data)
+            if self.frame_data_list:
+                frame_struct = self.frame_all_data[self.frame_data_list[self.current_index]]
+                # (注意: scipy.io.loadmat 会把字典读成一个 (1,1) 的 object array)
+                frame_struct = frame_struct[0, 0]
+                self.show_matrix(frame_struct)
+            else:
+                self.bus.log.emit("⚠️ 文件中未找到 'frame_' 变量")
+
         except Exception as e:
             print(f"读取文件时出错: {e}")
             QMessageBox.warning(self, "读取失败", f"读取文件失败：{e}")
@@ -671,35 +736,44 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.pushButton_Play.setText("Pause")
             # 可以更新按钮文本为“暂停”
 
-    def show_matrix(self, frame_data):
+    def show_matrix(self, frame_struct):
         """
         显示当前帧的数据
         """
         #print(f"显示当前帧数据：{frame_data}")
         #print(f"帧数据形状：{frame_data.shape}")
         #self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
+        try:
+            # 1. [修改点] 从结构体中读取数据和配置
+            frame_data = frame_struct['data']
+            sample = int(frame_struct['sample'][0,0]) # (scipy 奇怪的格式)
+            chirp = int(frame_struct['chirp'][0,0])
+
+        except Exception as e:
+            self.bus.log.emit(f"⛔ 读取帧结构失败: {e}。数据可能已损坏或格式陈旧。")
+            return
         selected_label = self.comboBox_MatFrom.currentText()
-        if selected_label == "CPP":  # C++ 数据
-            frame_data = frame_data.T  # 转置数据，确保行优先
-            sample = frame_data.shape[0] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
-            chirp = frame_data.shape[1]
-            frame_data_flat = frame_data.flatten()
-        elif selected_label == "Python":  # Python 数据
-            sample = frame_data.shape[1] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
-            chirp = frame_data.shape[0]
-            frame_data_flat = frame_data.flatten()
+        # if selected_label == "CPP":  # C++ 数据
+        #     frame_data = frame_data.T  # 转置数据，确保行优先
+        #     sample = frame_data.shape[0] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
+        #     chirp = frame_data.shape[1]
+        #     frame_data_flat = frame_data.flatten()
+        # elif selected_label == "Python":  # Python 数据
+        #     sample = frame_data.shape[1] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
+        #     chirp = frame_data.shape[0]
+        #     frame_data_flat = frame_data.flatten()
+        frame_data_flat = frame_data.flatten() # 直接
         if self.checkBox_HammingWindow.isChecked():
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample,window=my_window)
+        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
 
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
-
 
         if self.checkBox_CalibrationMode.isChecked():
             #得到2DFFT的峰值索引 对应的zij向量
@@ -754,7 +828,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if self.current_index < len(self.frame_data_list) - 1:
             self.current_index += 1
             self.bus.log.emit(f"显示帧：{self.frame_data_list[self.current_index]}")
-            self.show_matrix(self.frame_all_data[self.frame_data_list[self.current_index]])
+            frame_struct = self.frame_all_data[self.frame_data_list[self.current_index]]
+            frame_struct = frame_struct[0, 0] # (scipy 格式)
+            self.show_matrix(frame_struct)
         else:
             # 播放结束
             if self.is_playing:
@@ -808,7 +884,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "保存失败", f"保存文件时出错：\n{e}")
-
 
 # ================== 电机控制相关内容 ==================
     def MotorConnect(self):

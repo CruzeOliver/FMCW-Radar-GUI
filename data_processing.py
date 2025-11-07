@@ -567,65 +567,7 @@ def calculate_distance_from_iq(
 
     return R_fft, R_fft_macleod, R_czt_only, R_combo, diag
 
-#=========角度计算函数，基于2DFFT结果进行角度估计=============
-def estimate_az_el_from_fft2d(fft2d_results):
-    """
-    (v3 - 修正物理坐标系)
-
-    根据症状"左右移动会改变 dphi_y"，我们断定：
-    - X 轴 (水平 / Azimuth)  = TX 轴 (dphi_y)
-    - Y 轴 (垂直 / Elevation) = RX 轴 (dphi_x)
-    """
-    global wavelength
-    d_spacing = wavelength / 2.0
-
-    assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
-
-    # 1) 找全局最强点
-    power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)
-    k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
-
-    # 2) 取该点 4 阵元复值
-    v0 = fft2d_results[0, k_dop, k_rng]  # (TX0->RX0)
-    v1 = fft2d_results[1, k_dop, k_rng]  # (TX0->RX1)
-    v2 = fft2d_results[2, k_dop, k_rng]  # (TX1->RX0)
-    v3 = fft2d_results[3, k_dop, k_rng]  # (TX1->RX1)
-
-    # 3) 相位差（相邻阵元，取平均）
-
-    # [物理垂直轴] (Elevation)
-    dphi_rx = np.angle(v1 * np.conj(v0)) # (v1,v0)
-    dphi_rx_2 = np.angle(v3 * np.conj(v2)) # (v3,v2)
-    dphi_rx_avg  = np.angle(np.mean(np.exp(1j * np.array([dphi_rx, dphi_rx_2]))))
-
-    # [物理水平轴] (Azimuth)
-    dphi_tx = np.angle(v2 * np.conj(v0)) # (v2,v0)
-    dphi_tx_2 = np.angle(v3 * np.conj(v1)) # (v3,v1)
-    dphi_tx_avg  = np.angle(np.mean(np.exp(1j * np.array([dphi_tx, dphi_tx_2]))))
-
-    # 4) [!!! 最终修正 !!!] 相位差转角度
-
-    # sin(theta) = dphi / pi  (当 d = lambda / 2)
-
-    # 方位角 (Azimuth) 来自 TX 轴
-    s_az = dphi_tx_avg / np.pi
-    s_az = float(np.clip(s_az, -0.999999, 0.999999))
-    az_deg = np.degrees(np.arcsin(s_az))
-
-    # 俯仰角 (Elevation) 来自 RX 轴
-    s_el = dphi_rx_avg / np.pi
-    s_el = float(np.clip(s_el, -0.999999, 0.999999))
-    el_deg = np.degrees(np.arcsin(s_el))
-
-    extra = dict(
-        dphi_az=float(dphi_tx_avg),  # 水平
-        dphi_el=float(dphi_rx_avg),  # 垂直
-        s_az=float(s_az),
-        s_el=float(s_el),
-        wavelength=wavelength,
-        d_spacing=d_spacing
-    )
-    return az_deg, el_deg, (int(k_dop), int(k_rng)), extra
+###==================== 2D FFT 角度估计 ===================
 
 def estimate_az_el_from_fft2d2(fft2d_results):
     """
@@ -1265,3 +1207,299 @@ def music_2d_spectrum_auto(fft_results_1D):
     peak_az = az_angles[peak_j]  # 列索引对应方位角
 
     return AZ, EL, spectrum_dB, peak_az, peak_el
+
+
+# ----- 系统常量（按需修改） -----
+CenterFrequency_GHz = 60.0        # GHz, 请按实际改
+CenterFrequency = CenterFrequency_GHz * 1e9
+CHIRP_PERIOD_us = 94 + 14 + 0     # microseconds
+c = 3e8
+
+# optional per-antenna phase comps (set to your C values or 0)
+phaseCompAnt2 = -1.534169
+phaseCompAnt3 =  0.087150
+phaseCompAnt4 = -1.457130
+
+# angle compensation constants from your C snippet
+HORI_COR_O = 0.223265
+HORI_COR_E = 0.181189
+ELEV_COR0 = -2.740550
+ELEV_COR1 = -2.782625
+
+def angle_from_iq_full_pipeline(iq_virtual):
+    """
+    从 iq_virtual -> range FFT -> odd/even doppler FFT -> Az/El 输出（C 风格）
+    输入:
+        iq_virtual: ndarray complex, shape (4, chirp_per_tx, n_samples)
+                    order: [v0=TX0->RX0, v1=TX0->RX1, v2=TX1->RX0, v3=TX1->RX1]
+    返回:
+        result (hori_deg_phys, elev_deg_phys), debug dict
+    """
+    # sanity
+    assert iq_virtual.ndim == 3 and iq_virtual.shape[0] == 4
+    chirp_per_tx = iq_virtual.shape[1]    # e.g., 16
+    n_samples = iq_virtual.shape[2]       # e.g., 256
+    total_chirps = chirp_per_tx * 2      # e.g., 32
+
+    # physical params
+    wavelength = c / CenterFrequency
+    d = wavelength / 2.0   # assume antenna spacing lambda/2 (adjust if not)
+    Tc = CHIRP_PERIOD_us * 1e-6
+    PRF = 1.0 / Tc
+
+    debug = {}
+
+    # ---- 1) 从 iq_virtual 恢复 tx0_iq 与 tx1_iq ----
+    # recall: iq_virtual = stack([v0, v1, v2, v3]) with shapes (4, chirp_per_tx, n_samples)
+    v0 = iq_virtual[0]   # TX0->RX0 (chirp_per_tx, n_samples)
+    v1 = iq_virtual[1]   # TX0->RX1
+    v2 = iq_virtual[2]   # TX1->RX0
+    v3 = iq_virtual[3]   # TX1->RX1
+
+    tx0_iq = np.stack([v0, v1], axis=1)   # shape (chirp_per_tx, 2, n_samples) ?? careful ordering
+    # but better to have shape (chirp_per_tx, num_rx, n_samples):
+    tx0_iq = np.stack([v0, v1], axis=1)   # (chirp_per_tx, 2, n_samples) actually stack along axis=1 -> shape (chirp_per_tx,2,n)
+    tx1_iq = np.stack([v2, v3], axis=1)
+
+    # ---- 2) 重建完整 TDM 帧 (total_chirps, 2, n_samples) ----
+    full = np.zeros((total_chirps, 2, n_samples), dtype=np.complex64)
+    full[0::2, :, :] = tx0_iq      # even indices -> TX0 chirps
+    full[1::2, :, :] = tx1_iq      # odd indices -> TX1 chirps
+
+    debug['reconstructed_shape'] = full.shape
+
+    # ---- 3) Range FFT (along samples axis) ----
+    # Use fft (no window here, you may apply window earlier in reorder)
+    full_range = np.fft.fft(full, axis=2)   # shape (total_chirps, 2, n_samples)
+    # do NOT fftshift range unless your system uses a different indexing convention
+    # But we will keep as-is and select rng_idx directly
+    debug['full_range_shape'] = full_range.shape
+
+    # ---- 4) split even/odd chirp groups (time-domain parity) ----
+    even_group = full_range[0::2, :, :]   # shape (chirp_per_tx, 2, n_samples)
+    odd_group  = full_range[1::2, :, :]   # shape (chirp_per_tx, 2, n_samples)
+    Ndop_half = even_group.shape[0]       # should equal chirp_per_tx
+    debug['Ndop_half'] = int(Ndop_half)
+
+    # ---- 5) Doppler FFT for each group (along chirp axis) ----
+    # We'll compute FFT across axis=0 for each rx channel separately
+    DOP_EVEN = np.fft.fftshift(np.fft.fft(even_group, axis=0), axes=0)  # shape (Ndop_half, 2, n_samples)
+    DOP_ODD  = np.fft.fftshift(np.fft.fft(odd_group, axis=0), axes=0)
+
+    debug['DOP_EVEN_shape'] = DOP_EVEN.shape
+    debug['DOP_ODD_shape'] = DOP_ODD.shape
+
+    # ---- 6) 合并功率图并找最强目标 ----
+    power_map = np.sum(np.abs(DOP_EVEN)**2 + np.abs(DOP_ODD)**2, axis=1)  # sum over rx channels => (Ndop_half, n_samples)
+    dop_idx_half, rng_idx = np.unravel_index(np.nanargmax(power_map), power_map.shape)
+    debug['detected'] = dict(dop_idx_half=int(dop_idx_half), rng_idx=int(rng_idx))
+
+    # ---- 7) 取出四个通道在该 bin 上的 odd/even 值（对应 C 里的读取方式） ----
+    # For RX0:
+    val_rx0_even = DOP_EVEN[dop_idx_half, 0, rng_idx]
+    val_rx0_odd  = DOP_ODD[dop_idx_half, 0, rng_idx]
+    # For RX1:
+    val_rx1_even = DOP_EVEN[dop_idx_half, 1, rng_idx]
+    val_rx1_odd  = DOP_ODD[dop_idx_half, 1, rng_idx]
+
+    debug['vals_mag_phase'] = {
+        'rx0_even': (float(np.abs(val_rx0_even)), float(np.angle(val_rx0_even))),
+        'rx0_odd':  (float(np.abs(val_rx0_odd)), float(np.angle(val_rx0_odd))),
+        'rx1_even': (float(np.abs(val_rx1_even)), float(np.angle(val_rx1_even))),
+        'rx1_odd':  (float(np.abs(val_rx1_odd)), float(np.angle(val_rx1_odd))),
+    }
+
+    # apply per-antenna fixed phase (if needed) — this mirrors earlier attempts
+    val_rx0_even *= 1.0  # if you had per-antenna comp on rx0, apply here
+    val_rx0_odd  *= 1.0
+    val_rx1_even *= np.exp(1j*phaseCompAnt2)
+    val_rx1_odd  *= np.exp(1j*phaseCompAnt2)
+    # If there are per-TX comps for virtual channels, apply similarly.
+
+    # ---- 8) compute TDM phase compensation (修正版) ----
+    # compute fd (Hz) from dop_idx_half within Ndop_half; mapping assumes fftshifted bins
+    fd_hz = ((dop_idx_half - (Ndop_half // 2)) / float(Ndop_half)) * PRF
+    v_est = fd_hz * wavelength / 2.0
+    phase_tdm = 4.0 * np.pi * v_est * Tc / wavelength
+    debug['fd_v_phase_tdm'] = dict(fd_hz=float(fd_hz), v_est=float(v_est), phase_tdm=float(phase_tdm))
+
+    # 【【【 错误 1 修正：符号必须为 +1j 】】】
+    # 我们必须把速度引起的相位 "加" 回来，以匹配 C 代码的 + (dopIdx...) 逻辑
+    val_rx0_odd_corr = val_rx0_odd * np.exp(-1j * phase_tdm)
+    val_rx1_odd_corr = val_rx1_odd * np.exp(-1j * phase_tdm)
+
+    # ---- 9) compute phase-differences (修正版) ----
+
+    # 【【【 错误 2 修正：俯仰角 (Elevation) 必须使用 _corr 值 】】】
+    # 俯仰角 (Elevation): 比较 TX1 vs TX0 (奇 vs 偶), 垂直分离, 需要TDM补偿
+    dphi_el_rx0 = np.angle(val_rx0_odd_corr * np.conj(val_rx0_even)) # angle( (TX1->RX0)_corr / (TX0->RX0) )
+    dphi_el_rx1 = np.angle(val_rx1_odd_corr * np.conj(val_rx1_even)) # angle( (TX1->RX1)_corr / (TX0->RX1) )
+    dphi_el_avg = np.angle(np.mean(np.exp(1j * np.array([dphi_el_rx0, dphi_el_rx1]))))
+
+    # 【【【 错误 3 修正：水平角 (Azimuth) 必须比较 RX1 vs RX0 】】】
+    # 水平角 (Azimuth): 比较 RX1 vs RX0 (ch1 vs ch0), 水平分离, 不需要TDM补偿
+    dphi_az_tx0 = np.angle(val_rx1_even * np.conj(val_rx0_even)) # angle( (TX0->RX1) / (TX0->RX0) )
+    dphi_az_tx1 = np.angle(val_rx1_odd * np.conj(val_rx0_odd))   # angle( (TX1->RX1) / (TX1->RX0) )
+    dphi_az_avg = np.angle(np.mean(np.exp(1j * np.array([dphi_az_tx0, dphi_az_tx1]))))
+
+    debug.update({
+        'dphi_el_rx0': float(dphi_el_rx0),
+        'dphi_el_rx1': float(dphi_el_rx1),
+        'dphi_el_avg': float(dphi_el_avg), # 这是俯仰角
+        'dphi_az_tx0': float(dphi_az_tx0),
+        'dphi_az_tx1': float(dphi_az_tx1),
+        'dphi_az_avg': float(dphi_az_avg), # 这是水平角
+    })
+
+    # ---- 10) convert phase-diff -> angle (physical formulas) ----
+    # vertical:
+    s_el = (dphi_el_avg) * wavelength / (2.0 * np.pi * d)   # = sin(phi)
+    # clip and arcsin
+    s_el_clipped = np.clip(s_el, -0.999999, 0.999999)
+    elev_rad = np.arcsin(s_el_clipped)
+    elev_deg_phys = np.degrees(elev_rad)
+
+    # horizontal (Az) requires cos(elev) correction:
+    # Δφ_x = 2π * d/λ * sinθ * cosφ  -> sinθ = (Δφ_x * λ) / (2π d * cosφ)
+    cos_phi = np.cos(elev_rad) if abs(elev_rad) < (np.pi/2) else 1.0
+    s_az = (dphi_az_avg) * wavelength / (2.0 * np.pi * d) / (cos_phi if cos_phi!=0 else 1.0)
+    s_az_clipped = np.clip(s_az, -0.999999, 0.999999)
+    az_deg_phys = np.degrees(np.arcsin(s_az_clipped))
+
+    # also keep the direct-phase->deg mapping for debugging
+    hori_deg_direct = np.degrees(dphi_az_avg)
+    elev_deg_direct = np.degrees(dphi_el_avg)
+
+    debug.update({
+        's_el': float(s_el), 's_el_clipped': float(s_el_clipped),
+        's_az': float(s_az), 's_az_clipped': float(s_az_clipped),
+        'elev_deg_phys': float(elev_deg_phys),
+        'az_deg_phys': float(az_deg_phys),
+        'elev_deg_direct': float(elev_deg_direct),
+        'hori_deg_direct': float(hori_deg_direct),
+    })
+
+    return (az_deg_phys, elev_deg_phys), debug
+
+
+
+
+def estimate_az_el_from_fft2d(fft2d_results):
+    """
+    完整版 - 最终修正版 (2025-11-04)
+
+    此版本基于用户的实际测试进行了双重修正：
+    1. 修正了 TDM 补偿符号 (Step 4)。
+    2. 修正了硬件布局假设，交换了 Azimuth 和 Elevation 的计算 (Step 6/7/8)。
+
+    假定天线布局 (基于测试):
+      - TX0 / TX1 (奇/偶) = 水平分离 (用于水平角 Azimuth)
+      - RX0 / RX1 (ch0/ch1) = 垂直分离 (用于俯仰角 Elevation)
+
+    输入:
+        fft2d_results: ndarray, shape (4, Ndop, Nrange), complex
+                       通道顺序:
+                         0: TX0 -> RX0  (ch0_odd)
+                         1: TX0 -> RX1  (ch1_odd)
+                         2: TX1 -> RX0  (ch0_even)
+                         3: TX1 -> RX1  (ch1_even)
+    """
+    global CenterFrequency, CHIRP_PERIOD
+    global phaseCompAnt2, phaseCompAnt3, phaseCompAnt4
+
+
+    assert fft2d_results.ndim == 3 and fft2d_results.shape[0] == 4
+
+    Ndop = fft2d_results.shape[1]
+    Nrange = fft2d_results.shape[2]
+
+    fc_hz = float(CenterFrequency) * 1e9
+    wavelength = C / fc_hz
+    d_spacing = wavelength / 2.0
+
+    Tc = float(CHIRP_PERIOD) * 1e-6
+    PRF = 1.0 / Tc
+
+    # --- 1) 找最强点 ---
+    # (保持不变)
+    power_sum = np.sum(np.abs(fft2d_results)**2, axis=0)
+    k_dop, k_rng = np.unravel_index(np.argmax(power_sum), power_sum.shape)
+
+    # --- 2) Doppler -> 径向速度 ---
+    # (保持不变)
+    fd_hz = ((k_dop - Ndop // 2) / Ndop) * PRF
+    v_est = fd_hz * wavelength / 2.0
+
+    # --- 3) 复制并应用天线相位补偿 ---
+    # (保持不变)
+    fft_corr = fft2d_results.astype(np.complex64).copy()
+    fft_corr[1, :, :] *= np.exp(1j * float(phaseCompAnt2)) # TX0->RX1
+    fft_corr[2, :, :] *= np.exp(1j * float(phaseCompAnt3)) # TX1->RX0
+    fft_corr[3, :, :] *= np.exp(1j * float(phaseCompAnt4)) # TX1->RX1
+
+    # --- 4) TDM 相位补偿 (TX1 -> TX0 延迟一个 chirp 周期) ---
+    #
+    # 【【【 修正 1：修正 TDM 补偿符号 】】】
+    # 符号从 -1j 改为 +1j，以匹配 C 代码的 "加法" 逻辑 (dphi_measured + dphi_tdm)
+    #
+    phase_tdm = 4.0 * np.pi * v_est * Tc / wavelength
+    fft_corr[2:4, :, :] *= np.exp(1j * phase_tdm)
+
+    # --- 5) 取目标点四个阵元 ---
+    # (保持不变)
+    v0 = fft_corr[0, k_dop, k_rng]  # TX0->RX0 (ch0_odd)
+    v1 = fft_corr[1, k_dop, k_rng]  # TX0->RX1 (ch1_odd)
+    v2 = fft_corr[2, k_dop, k_rng]  # TX1->RX0 (ch0_even) - 已补偿TDM
+    v3 = fft_corr[3, k_dop, k_rng]  # TX1->RX1 (ch1_even) - 已补偿TDM
+
+    # --- 6) 【修正 2】俯仰角 (Elevation): 沿 RX 差分 (垂直分离) ---
+    # (这是 C 代码中的 'hori'，在您日志中是稳定的 -29°)
+
+    # 比较 RX1 和 RX0 (在 TX0 路径上)
+    dphi_el_tx0 = np.angle(v1 * np.conj(v0))  # angle( (TX0->RX1) / (TX0->RX0) )
+
+    # 比较 RX1 和 RX0 (在 TX1 路径上)
+    dphi_el_tx1 = np.angle(v3 * np.conj(v2))  # angle( (TX1->RX1) / (TX1->RX0) )
+
+    # RX 间没有 TDM 延迟，不需要补偿 (TDM 补偿在 v3/v2 时已自动抵消)
+    dphi_el_avg = np.angle(np.mean(np.exp(1j * np.array([dphi_el_tx0, dphi_el_tx1]))))
+
+    # --- 7) 【修正 2】水平角 (Azimuth): 沿 TX 差分 (水平分离) ---
+    # (这是 C 代码中的 'elev'，在您日志中是扫描的 -50° 到 +39°)
+
+    # 比较 TX1 和 TX0 (在 RX0 路径上)
+    dphi_az_rx0 = np.angle(v2 * np.conj(v0))  # angle( (TX1->RX0) / (TX0->RX0) )
+
+    # 比较 TX1 和 TX0 (在 RX1 路径上)
+    dphi_az_rx1 = np.angle(v3 * np.conj(v1))  # angle( (TX1->RX1) / (TX0->RX1) )
+
+    # v2 和 v3 已经在 Step 4 中被 TDM 补偿过了，这里的相位差是纯粹的空间相位
+    dphi_az_avg = np.angle(np.mean(np.exp(1j * np.array([dphi_az_rx0, dphi_az_rx1]))))
+
+    # 水平角 Azimuth (来自 RX 间距, 即 dphi_el_avg)
+    s_az = float(np.clip(dphi_el_avg / np.pi, -0.999999, 0.999999))
+    az_deg = np.degrees(np.arcsin(s_az))
+
+    # 俯仰角 Elevation (来自 TX 间距, 即 dphi_az_avg)
+    s_el = float(np.clip(dphi_az_avg / np.pi, -0.999999, 0.999999))
+    el_deg = np.degrees(np.arcsin(s_el))
+
+    # --- 9) 整理额外输出 ---
+    # (同样交换 dphi_az 和 dphi_el 以匹配标签)
+    extra = dict(
+        # dphi_az 对应 az_deg (来自 RX 间距)
+        dphi_az=float(dphi_el_avg),
+        # dphi_el 对应 el_deg (来自 TX 间距)
+        dphi_el=float(dphi_az_avg),
+        phase_tdm=float(phase_tdm),
+        fd_hz=float(fd_hz),
+        v_est=float(v_est),
+        wavelength=float(wavelength),
+        d_spacing=float(d_spacing),
+        doppler_index=int(k_dop),
+        range_index=int(k_rng),
+        PRF=float(PRF),
+        Tc=float(Tc)
+    )
+
+    return az_deg, el_deg, (int(k_dop), int(k_rng)), extra

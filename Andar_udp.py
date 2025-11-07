@@ -16,8 +16,8 @@ from udp_handler import *
 from display_pg import PgDisplay
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
-PEER_IP = "192.168.1.55"   # 雷达设备IP
-PEER_PORT = 6666           # 若需主动发送，发往的端口
+PEER_IP = "192.168.1.55"     # 雷达设备IP
+PEER_PORT = 6666             # 若需主动发送，发往的端口
 PKT_SIZE = 1024              # 每个UDP包固定 1024B
 
 # ================== Qt 信号总线 ==================
@@ -83,9 +83,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.setupInitialUIState()
         self.tabWidget_Display.setMovable(True) #把widgets_tab设置为可移动转为dock
 
-        options = ["CPP", "Python"]
-        self.comboBox_MatFrom.addItems(options)
-        self.comboBox_MatFrom.setCurrentIndex(1)
         # UDP网络读取相关变量
         self.raw_queue = None
         self.frame_queue = None
@@ -434,10 +431,17 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             else:
                 my_window = None
 
-            # chirp = chirp//2  # 原始数据是 I/Q 交错的，所以样本数减半
-            # iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
-            sample = sample // 2
-            iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
+            chirp = chirp//2  # 原始数据是 I/Q 交错的，所以样本数减半
+            iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
+
+
+            # (az_deg_phys, elev_deg_phys), debug = angle_from_iq_full_pipeline(iq)
+
+            # print(f"估计角度: Azimuth={az_deg_phys:.2f}°, Elevation={elev_deg_phys:.2f}°")
+            # print(f"调试信息: {debug}")
+
+            # sample = sample // 2
+            # iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
             self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
@@ -467,8 +471,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             else:
                 pass
 
-            az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-            print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
+            # az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
+            # print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
 
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
             self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
@@ -752,21 +756,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         except Exception as e:
             self.bus.log.emit(f"⛔ 读取帧结构失败: {e}。数据可能已损坏或格式陈旧。")
             return
-        selected_label = self.comboBox_MatFrom.currentText()
-        # if selected_label == "CPP":  # C++ 数据
-        #     frame_data = frame_data.T  # 转置数据，确保行优先
-        #     sample = frame_data.shape[0] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
-        #     chirp = frame_data.shape[1]
-        #     frame_data_flat = frame_data.flatten()
-        # elif selected_label == "Python":  # Python 数据
-        #     sample = frame_data.shape[1] // 8  # 4 虚拟天线，每个天线 2 个通道（I/Q）
-        #     chirp = frame_data.shape[0]
-        #     frame_data_flat = frame_data.flatten()
+
+        #  处理数据并更新显示
         frame_data_flat = frame_data.flatten() # 直接
         if self.checkBox_HammingWindow.isChecked():
             my_window = np.hamming(sample)
         else:
             my_window = None
+        chirp = chirp // 2  # 原始数据是 I/Q 交错的，所以样本数减半
         iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
 
         #距离计算函数，CZT采用时域变换

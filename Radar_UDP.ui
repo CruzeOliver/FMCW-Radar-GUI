@@ -286,12 +286,15 @@
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="comboBox_MatFrom">
+             <widget class="QPushButton" name="pushButton_Next">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>5</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Next</string>
               </property>
              </widget>
             </item>
@@ -309,19 +312,6 @@
               </property>
               <property name="text">
                <string>Play</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButton_Next">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>5</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Next</string>
               </property>
              </widget>
             </item>

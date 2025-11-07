@@ -15,12 +15,11 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
-    QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-    QLineEdit, QMainWindow, QMenuBar, QPushButton,
-    QSizePolicy, QSpacerItem, QStatusBar, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QGridLayout,
+    QGroupBox, QHBoxLayout, QHeaderView, QLineEdit,
+    QMainWindow, QMenuBar, QPushButton, QSizePolicy,
+    QSpacerItem, QStatusBar, QTabWidget, QTableWidget,
+    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -195,12 +194,12 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_4.addWidget(self.pushButton_ReadFile)
 
-        self.comboBox_MatFrom = QComboBox(self.groupBox_File)
-        self.comboBox_MatFrom.setObjectName(u"comboBox_MatFrom")
-        sizePolicy3.setHeightForWidth(self.comboBox_MatFrom.sizePolicy().hasHeightForWidth())
-        self.comboBox_MatFrom.setSizePolicy(sizePolicy3)
+        self.pushButton_Next = QPushButton(self.groupBox_File)
+        self.pushButton_Next.setObjectName(u"pushButton_Next")
+        sizePolicy3.setHeightForWidth(self.pushButton_Next.sizePolicy().hasHeightForWidth())
+        self.pushButton_Next.setSizePolicy(sizePolicy3)
 
-        self.horizontalLayout_4.addWidget(self.comboBox_MatFrom)
+        self.horizontalLayout_4.addWidget(self.pushButton_Next)
 
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_4)
@@ -213,13 +212,6 @@ class Ui_MainWindow(object):
         self.pushButton_Play.setSizePolicy(sizePolicy3)
 
         self.horizontalLayout_6.addWidget(self.pushButton_Play)
-
-        self.pushButton_Next = QPushButton(self.groupBox_File)
-        self.pushButton_Next.setObjectName(u"pushButton_Next")
-        sizePolicy3.setHeightForWidth(self.pushButton_Next.sizePolicy().hasHeightForWidth())
-        self.pushButton_Next.setSizePolicy(sizePolicy3)
-
-        self.horizontalLayout_6.addWidget(self.pushButton_Next)
 
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_6)
@@ -621,8 +613,8 @@ class Ui_MainWindow(object):
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))
-        self.pushButton_Play.setText(QCoreApplication.translate("MainWindow", u"Play", None))
         self.pushButton_Next.setText(QCoreApplication.translate("MainWindow", u"Next", None))
+        self.pushButton_Play.setText(QCoreApplication.translate("MainWindow", u"Play", None))
         self.pushButton_CloseFile.setText(QCoreApplication.translate("MainWindow", u"Close Init", None))
         self.pushButton_SaveTable.setText(QCoreApplication.translate("MainWindow", u"Save Table", None))
         self.groupBox_motor.setTitle(QCoreApplication.translate("MainWindow", u"Motor Control", None))

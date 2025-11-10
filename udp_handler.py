@@ -147,7 +147,7 @@ def reorder_frame_TDMMIMO2(frame_bytes: bytes, chirp_from_header: int, sample_fr
     # 最终返回 (4, chirp_per_tx, sample_from_header)
     return iq_virtual
 
-def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp_per_tx: int, real_sample_points: int, txrx: int, window: np.ndarray | None = None) -> np.ndarray:
+def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp: int, real_sample_points: int, txrx: int, window: np.ndarray | None = None) -> np.ndarray:
     """
     (最终方案 v8 - 匹配 C 内存和 UDP)
 
@@ -164,7 +164,7 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp_per_tx: int, real_sample_poi
     data = np.frombuffer(frame_bytes, dtype=np.int16)
 
     # (传入: chirp_per_tx = 16, real_sample_points = 256)
-    total_chirp_tdm = chirp_per_tx * 2   # e.g., 32
+    total_chirp_tdm = chirp    # e.g., 32
     num_rx_physical = 2
 
     # 1 pkt = 1024 bytes = 512 int16s
@@ -172,13 +172,13 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp_per_tx: int, real_sample_poi
     # 1 chirp = 2 个包
 
     # C 代码的循环次数 (基于 header 32 / 2) = 16 次
-    num_c_loops = (chirp_per_tx * 2) // 2 # 16
+    num_c_loops = (chirp ) // 2 # 16
 
     expected_int16s = num_c_loops * 4 * 512 # 16 * 4 * 512 = 32,768
 
     if data.size != expected_int16s:
         raise ValueError(f"帧数据大小错误: 期望 {expected_int16s} (int16), 实际 {data.size}")
-
+    chirp_per_tx = chirp // 2  # tx的chirp是总的chirp的一半
 
     # --- 1. “解交错” (Undo C code's interleaving) ---
     try:
@@ -214,18 +214,25 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp_per_tx: int, real_sample_poi
     # 创建 TDM 帧 (32, 2, 256, 2)
     tdm_frame = np.zeros((total_chirp_tdm, num_rx_physical, real_sample_points, 2), dtype=np.int16)
 
-    tdm_frame[0::2, :, :, :] = tx0_iq  # TX0 数据放入偶数 chirps (16 chirps)
-    tdm_frame[1::2, :, :, :] = tx1_iq  # TX1 数据放入奇数 chirps (16 chirps)
+    # 1. TX0 对应 奇数索引 (1, 3, 5...)
+    tdm_frame[1::2, :, :, :] = tx0_iq # TX0 数据放入奇数 chirps
+
+    # 2. TX1 对应 偶数索引 (0, 2, 4...)
+    tdm_frame[0::2, :, :, :] = tx1_iq # TX1 数据放入偶数 chirps
 
     # --- 3. 创建虚拟通道 ---
 
     # (32, 2, 256, 2) -> (32, 2, 256)
     iq_complex = tdm_frame[..., 0] + 1j * tdm_frame[..., 1] # 假设 I, Q
+    #iq_complex = tdm_frame[..., 1] + 1j * tdm_frame[..., 0] # 将 I (索引 1) 作为实部，Q (索引 0) 作为虚部
 
-    v0 = iq_complex[0::2, 0, :]  # TX0 → RX0 (16, 256)
-    v1 = iq_complex[0::2, 1, :]  # TX0 → RX1 (16, 256)
-    v2 = iq_complex[1::2, 0, :]  # TX1 → RX0 (16, 256)
-    v3 = iq_complex[1::2, 1, :]  # TX1 → RX1 (16, 256)
+    # v0, v1 使用奇数索引的数据 (TX0)
+    v0 = iq_complex[1::2, 0, :]  # TX0 → RX0 (奇数Chirp)
+    v1 = iq_complex[1::2, 1, :]  # TX0 → RX1 (奇数Chirp)
+
+    # v2, v3 使用偶数索引的数据 (TX1)
+    v2 = iq_complex[0::2, 0, :]  # TX1 → RX0 (偶数Chirp)
+    v3 = iq_complex[0::2, 1, :]  # TX1 → RX1 (偶数Chirp)
 
     # 堆叠成 (4, 16, 256)
     iq_virtual = np.stack([v0, v1, v2, v3], axis=0).astype('complex64')
@@ -238,6 +245,7 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp_per_tx: int, real_sample_poi
 
     # 最终返回 (4, chirp_per_tx, real_sample_points)
     return iq_virtual
+
 
 # ================== 组装状态类 ==================
 class AsmState:

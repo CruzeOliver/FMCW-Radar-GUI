@@ -300,7 +300,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self,
                 "About",
                 "<h3>FMCW Radar GUI</h3>"
-                "<p><b>Version:</b> 4.0.1</p>"
+                "<p><b>Version:</b> 5.0.1</p>"
                 "<p>a Python-based desktop application for real-time acquisition , " \
                 "processing, and visualization of FMCW radar data</p>"
                 "<p>© China Jiliang University.</p>"
@@ -431,14 +431,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             else:
                 my_window = None
 
-            chirp = chirp//2  # 原始数据是 I/Q 交错的，所以样本数减半
             iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
-
-
-            # (az_deg_phys, elev_deg_phys), debug = angle_from_iq_full_pipeline(iq)
-
-            # print(f"估计角度: Azimuth={az_deg_phys:.2f}°, Elevation={elev_deg_phys:.2f}°")
-            # print(f"调试信息: {debug}")
 
             # sample = sample // 2
             # iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
@@ -750,7 +743,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         try:
             # 1. [修改点] 从结构体中读取数据和配置
             frame_data = frame_struct['data']
-            sample = int(frame_struct['sample'][0,0]) # (scipy 奇怪的格式)
+            sample = int(frame_struct['sample'][0,0])
             chirp = int(frame_struct['chirp'][0,0])
 
         except Exception as e:
@@ -758,14 +751,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return
 
         #  处理数据并更新显示
-        frame_data_flat = frame_data.flatten() # 直接
+        frame_data_flat = frame_data.flatten()
         if self.checkBox_HammingWindow.isChecked():
             my_window = np.hamming(sample)
         else:
             my_window = None
-        chirp = chirp // 2  # 原始数据是 I/Q 交错的，所以样本数减半
         iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
-
+        #iq = reorder_frame(frame_data_flat, chirp, sample, 4, window=my_window)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)

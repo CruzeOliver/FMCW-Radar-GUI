@@ -811,6 +811,7 @@ def phase_calibration(
     return phi_matrix
 
 
+
 def apply_channel_calibration(
     iq_data: np.ndarray,
     alpha_matrix: np.ndarray,
@@ -858,51 +859,7 @@ def apply_channel_calibration(
 
     return calibrated_iq
 
-###==================== 基于复数通道比值法进行IQ校准 ===================
-def complex_channel_calibration(zij_vector: np.ndarray):
-    """
-    使用复数通道比值法进行校准，并返回一个复数校准因子向量。
-
-    输入：
-        zij_vector: np.ndarray, 形状为 (n_ant,) 的复数向量，
-                    代表每个通道在目标峰值处的响应。
-
-    输出：
-        beta_vector: np.ndarray, 形状为 (n_ant,) 的复数校准因子向量。
-    """
-    # 将第一个通道作为基准，其复数校准因子为 1
-    beta_vector = np.ones_like(zij_vector)
-
-    # 找到基准通道的复数值 z00
-    z00 = zij_vector[0]
-
-    # 对于其他通道，计算其相对于基准通道的比值
-    # 这个比值就是每个通道的复数校准因子
-    for i in range(1, len(zij_vector)):
-        beta_vector[i] = zij_vector[i] / z00
-
-    return beta_vector
-
-def apply_complex_calibration(iq_data: np.ndarray, beta_vector: np.ndarray):
-    """
-    使用复数校准因子对 IQ 数据进行校准。
-
-    输入：
-        iq_data: np.ndarray, 形状为 (n_ant, n_chirp, n_points)
-        beta_vector: np.ndarray, 形状为 (n_ant,) 的复数校准因子向量。
-
-    输出：
-        calibrated_iq: np.ndarray, 校准后的 IQ 数据。
-    """
-    # 补偿因子是 beta_vector 的倒数
-    compensation_vector = 1 / beta_vector
-
-    # 将补偿因子广播到 IQ 数据上进行校准
-    # np.newaxis 将一维向量转换为 (n_ant, 1, 1) 的形状，以便广播
-    calibrated_iq = iq_data * compensation_vector[:, np.newaxis, np.newaxis]
-
-    return calibrated_iq
-
+###==================== 频率偏移校准(时域IQ数据) ===================
 
 def extract_dphi_hw(iq_data, ref_channel=0):
     """提取4通道相对于基准的相位差（bin=1，多chirp平均）"""

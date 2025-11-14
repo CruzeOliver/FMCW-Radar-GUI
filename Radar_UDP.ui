@@ -228,6 +228,17 @@
            </layout>
           </item>
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_14">
+            <item>
+             <widget class="QPushButton" name="pushButton">
+              <property name="text">
+               <string>ILSCalibration</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_11">
             <item>
              <widget class="QPushButton" name="pushButton_LoadMode">
@@ -760,7 +771,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>912</x>
-     <y>361</y>
+     <y>392</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -792,7 +803,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>912</x>
-     <y>423</y>
+     <y>454</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -808,7 +819,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>993</x>
-     <y>423</y>
+     <y>454</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -824,7 +835,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>912</x>
-     <y>287</y>
+     <y>318</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -840,7 +851,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>994</x>
-     <y>487</y>
+     <y>518</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -856,7 +867,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>994</x>
-     <y>516</y>
+     <y>547</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -872,7 +883,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>993</x>
-     <y>546</y>
+     <y>577</y>
     </hint>
     <hint type="destinationlabel">
      <x>954</x>
@@ -887,12 +898,28 @@
    <slot>PlayMatfile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>902</x>
-     <y>377</y>
+     <x>993</x>
+     <y>423</y>
     </hint>
     <hint type="destinationlabel">
      <x>814</x>
      <y>377</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>ILSCalibration()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>971</x>
+     <y>269</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>806</x>
+     <y>304</y>
     </hint>
    </hints>
   </connection>
@@ -909,5 +936,6 @@
   <slot>MotorDisconnect()</slot>
   <slot>AngelMove()</slot>
   <slot>PlayMatfile()</slot>
+  <slot>ILSCalibration()</slot>
  </slots>
 </ui>

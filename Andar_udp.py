@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBo
 from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
-import scipy.io
+from scipy.io import loadmat
 import numpy as np
 import warnings
 import time
@@ -14,6 +14,8 @@ from data_processing import *
 import motorController
 from udp_handler import *
 from display_pg import PgDisplay
+from ILSCalibration import *
+
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
 PEER_IP = "192.168.1.55"     # 雷达设备IP
@@ -111,6 +113,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.warmup_avg = None
         self.alpha_matrix = None
         self.phi_matrix = None
+        self.v_calibration = None #ILS校准向量
         # display 控件相关变量 GUI显示界面绑定实例化
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.5
@@ -569,10 +572,20 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.bus.log.emit(f"已加载校准模型文件：{file_path}")
             file_name = os.path.basename(file_path)
             self.lineEdit_ModeName.setText(file_name)
-            self.alpha_matrix = cal_data['alpha']
-            self.phi_matrix = cal_data['phi']
-            self.bus.log.emit(f"幅度校准矩阵：\n{self.alpha_matrix}")
-            self.bus.log.emit(f"相位校准矩阵：\n{self.phi_matrix}")
+
+            # 使用get方法获取数据，键不存在时返回None
+            self.v_calibration = cal_data.get('v_calib', None)
+            self.alpha_matrix = cal_data.get('alpha', None)
+            self.phi_matrix = cal_data.get('phi', None)
+
+            # 日志输出（仅在存在时打印，避免None值）
+            if self.v_calibration is not None:
+                self.bus.log.emit(f"ILS校准向量：\n{self.v_calibration}")
+
+            if self.alpha_matrix is not None and self.phi_matrix is not None:
+                self.bus.log.emit(f"幅度校准矩阵：\n{self.alpha_matrix}")
+                self.bus.log.emit(f"相位校准矩阵：\n{self.phi_matrix}")
+
 
 
 # ================== 文件读取部分内容 ==================
@@ -675,7 +688,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         读取 MAT 文件中的数据
         """
         try:
-            data = scipy.io.loadmat(filename) # 读取 .mat 文件
+            data = loadmat(filename) # 读取 .mat 文件
             self.frame_all_data = data
 
             self.bus.log.emit(f"读取文件：{filename}")
@@ -777,6 +790,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             #对新的IQ数据 重新计算FFT
             self.fft_results_1D = Perform1D_FFT(calibrated_iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
+        if not self.checkBox_channel_calibration.isChecked() and self.v_calibration is not None:
+            # 如果只应用ILS校准
+            ILS_calibration = self.v_calibration.reshape((4, 1, 1))
+            self.fft_results_2D = self.fft_results_2D * ILS_calibration
         else:
             # 如果不校准，则直接使用原始iq数据
             calibrated_iq = iq
@@ -873,6 +890,118 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "保存失败", f"保存文件时出错：\n{e}")
+
+
+# ===================基于最小二乘法的ILS校准办法 ==================
+    def ILSCalibration_Process(self):
+        """
+        批量读取多个 MAT 文件，从每个文件的第10帧中提取 4 通道复数目标响应向量 s_raw_i
+        """
+        file_dialog = QFileDialog(self, "选择多个 MAT 文件")
+        file_dialog.setFileMode(QFileDialog.ExistingFiles)
+        file_dialog.setNameFilter("MAT files (*.mat)")
+
+        s_raw_list = []  # 存放每个文件的复数向量 (4, 1)
+
+        if not file_dialog.exec():
+            self.bus.log.emit("用户取消选择文件")
+            return []
+
+        file_paths = file_dialog.selectedFiles()
+        self.bus.log.emit(f"共选择 {len(file_paths)} 个 MAT 文件")
+
+        for file_path in file_paths:
+            try:
+                # === 1. 读取文件并提取第10帧 ===
+                data = loadmat(file_path)
+                frame_keys = [k for k in data.keys() if k.startswith('frame')]
+                frame_keys.sort()
+
+                if len(frame_keys) < 10:
+                    self.bus.log.emit(f"⚠️ {file_path} 不足10帧，跳过")
+                    continue
+
+                frame_struct = data[frame_keys[9]][0, 0]  # 第10帧
+                frame_data = frame_struct['data']
+                sample = int(frame_struct['sample'][0, 0])
+                chirp = int(frame_struct['chirp'][0, 0])
+
+                # === 2. 还原 IQ 数据 ===
+                frame_data_flat = frame_data.flatten()
+                iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4)
+
+                # === 3. 执行 FFT 处理 ===
+                fft_1d = Perform1D_FFT(iq)
+                fft_2d = Perform2D_FFT(fft_1d)   # 输出形状: [VA通道, chirp, range]
+
+                # === 4. 寻找 R-D 峰值位置 ===
+                # 先对所有通道求平均功率后寻找峰值
+                power_map = np.mean(np.abs(fft_2d)**2, axis=0)
+                r_i, c_i = np.unravel_index(np.argmax(power_map), power_map.shape)
+
+                # === 5. 提取该点的4通道复数响应 ===
+                s_raw_i = fft_2d[:, r_i, c_i].reshape(4, 1)  # 形状 (4,1)
+                s_raw_list.append(s_raw_i)
+                self.ILSCalibration_Process
+
+
+                self.bus.log.emit(f"✅ {file_path} 提取目标点 ({c_i}, {r_i}) 成功")
+
+            except Exception as e:
+                self.bus.log.emit(f"❌ 处理 {file_path} 出错: {e}")
+                continue
+
+        self.bus.log.emit(f"共提取 {len(s_raw_list)} 个目标复数向量")
+        return s_raw_list
+
+    def ILSCalibration(self):
+        """
+        执行基于最小二乘法的ILS校准流程
+        """
+        s_raw_list = self.ILSCalibration_Process()
+        if not s_raw_list:
+            self.bus.log.emit("错误：未提取到任何目标复数向量，无法进行校准。")
+            return None
+
+        # 将列表中的所有 (4, 1) 向量水平堆叠成一个 (4, I) 矩阵 K_noisy。
+        K_noisy = np.hstack(s_raw_list)
+
+        self.bus.log.emit(f"✅ ILS 输入矩阵 K_noisy 形状：{K_noisy.shape}")
+        try:
+            self.bus.log.emit("--- 开始迭代最小二乘 (ILS) 通道校准 ---")
+
+            # K, L, D_TX, D_RX, LAMBDA_C 都是全局常量，CalibrateILS_SimpleDOA 会使用它们
+            gamma_tx_est, gamma_rx_est = CalibrateILS_SimpleDOA(K_noisy)
+
+            self.bus.log.emit("--- ILS 校准完成 ---")
+
+            # 步骤 3：构建最终校准向量 v
+
+            # 组合 VA 通道误差向量 (4x1)
+            gamma_va_est = np.kron(gamma_tx_est, gamma_rx_est)
+
+            # 计算校准向量 v (即 1 / 误差向量)
+            # v 就是您需要保存并应用于后续数据的核心参数
+            v_calibration = 1.0 / gamma_va_est
+            filename = f"{self.generate_unique_time()} ILScalibration"
+            np.savez(filename, v_calib=v_calibration)
+
+            self.bus.log.emit(f"✅ 校准向量 v 成功计算。形状：{v_calibration.shape}")
+
+            # 打印最终结果供检查
+            print("\n--- 最终估计的通道误差 (GPI) ---")
+            print(f"Tx 误差: {gamma_tx_est}")
+            print(f"Rx 误差: {gamma_rx_est}")
+            print(f"VA 校准向量 (v): {v_calibration}")
+
+            return v_calibration
+
+        except ValueError as e:
+            self.bus.log.emit(f"❌ ILS 算法错误: {e}")
+            return None
+        except Exception as e:
+            self.bus.log.emit(f"❌ 运行 ILS 时发生未知错误: {e}")
+            return None
 
 # ================== 电机控制相关内容 ==================
     def MotorConnect(self):

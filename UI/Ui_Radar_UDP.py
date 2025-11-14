@@ -146,6 +146,16 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_9)
 
+        self.horizontalLayout_14 = QHBoxLayout()
+        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
+        self.pushButton = QPushButton(self.groupBox_calibration)
+        self.pushButton.setObjectName(u"pushButton")
+
+        self.horizontalLayout_14.addWidget(self.pushButton)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_14)
+
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
         self.pushButton_LoadMode = QPushButton(self.groupBox_calibration)
@@ -591,6 +601,7 @@ class Ui_MainWindow(object):
         self.pushButton_MotorDisconnect.clicked.connect(MainWindow.MotorDisconnect)
         self.pushButton_MoveAngel.clicked.connect(MainWindow.AngelMove)
         self.pushButton_Play.clicked.connect(MainWindow.PlayMatfile)
+        self.pushButton.clicked.connect(MainWindow.ILSCalibration)
 
         self.tabWidget_Display.setCurrentIndex(1)
         self.tabWidget_Message.setCurrentIndex(0)
@@ -610,6 +621,7 @@ class Ui_MainWindow(object):
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration Mode\u200c", None))
         self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Apply Calibration", None))
+        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"ILSCalibration", None))
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))

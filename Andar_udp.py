@@ -1023,6 +1023,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.CH375motor.motor_start(angel)
         except ValueError as ve:
             self.bus.log.emit(f"[ERR]无效的角度输入")
+    def circleTest(self):
+        print("开始电机循环测试")
 
     def closeEvent(self, e):
         self.UDP_disconnect()

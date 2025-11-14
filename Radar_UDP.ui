@@ -24,6 +24,53 @@
     <enum>Qt::LeftToRight</enum>
    </property>
    <layout class="QGridLayout" name="gridLayout">
+    <item row="2" column="1">
+     <widget class="Line" name="line_3">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QTabWidget" name="tabWidget_Message">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>12</horstretch>
+        <verstretch>3</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="font">
+       <font>
+        <family>Times New Roman</family>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_log">
+       <attribute name="title">
+        <string>LogMessage</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QTextEdit" name="textEdit_log"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_Distance">
+       <attribute name="title">
+        <string>Distance / Angel</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QTableWidget" name="tableWidget_distance"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
     <item row="0" column="2">
      <widget class="QGroupBox" name="groupBox_Config">
       <property name="sizePolicy">
@@ -296,19 +343,6 @@
               </property>
              </widget>
             </item>
-            <item>
-             <widget class="QPushButton" name="pushButton_Next">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>5</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Next</string>
-              </property>
-             </widget>
-            </item>
            </layout>
           </item>
           <item>
@@ -323,6 +357,19 @@
               </property>
               <property name="text">
                <string>Play</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_Next">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>5</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Next</string>
               </property>
              </widget>
             </item>
@@ -364,16 +411,27 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
-           <widget class="QPushButton" name="pushButton_MotorConnect">
-            <property name="text">
-             <string>Motor Init</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_16">
+            <item>
+             <widget class="QPushButton" name="pushButton_MotorDisconnect">
+              <property name="text">
+               <string>Motor Stop</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_MotorConnect">
+              <property name="text">
+               <string>Motor Init</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_MotorDisconnect">
+           <widget class="QPushButton" name="pushButton_2">
             <property name="text">
-             <string>Motor Stop</string>
+             <string>Circle Test</string>
             </property>
            </widget>
           </item>
@@ -421,6 +479,20 @@
         </spacer>
        </item>
       </layout>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="Line" name="line">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="2">
+     <widget class="Line" name="line_2">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
      </widget>
     </item>
     <item row="0" column="0">
@@ -636,71 +708,10 @@
       </widget>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QTabWidget" name="tabWidget_Message">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>12</horstretch>
-        <verstretch>3</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="font">
-       <font>
-        <family>Times New Roman</family>
-        <weight>75</weight>
-        <bold>true</bold>
-       </font>
-      </property>
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="tab_log">
-       <attribute name="title">
-        <string>LogMessage</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="QTextEdit" name="textEdit_log"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_Distance">
-       <attribute name="title">
-        <string>Distance / Angel</string>
-       </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
-        <item>
-         <widget class="QTableWidget" name="tableWidget_distance"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item row="1" column="2">
-     <widget class="Line" name="line_2">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="Line" name="line_3">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
     <item row="0" column="1">
      <widget class="Line" name="line_4">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
-      </property>
-     </widget>
-    </item>
-    <item row="1" column="0">
-     <widget class="Line" name="line">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
       </property>
      </widget>
     </item>
@@ -787,7 +798,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>993</x>
-     <y>392</y>
+     <y>423</y>
     </hint>
     <hint type="destinationlabel">
      <x>805</x>
@@ -850,8 +861,8 @@
    <slot>MotorConnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>994</x>
-     <y>518</y>
+     <x>993</x>
+     <y>519</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -866,8 +877,8 @@
    <slot>MotorDisconnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>994</x>
-     <y>547</y>
+     <x>912</x>
+     <y>519</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -898,7 +909,7 @@
    <slot>PlayMatfile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>993</x>
+     <x>912</x>
      <y>423</y>
     </hint>
     <hint type="destinationlabel">
@@ -923,6 +934,22 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>pushButton_2</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>circleTest()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>886</x>
+     <y>541</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>814</x>
+     <y>574</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>UDP_connect()</slot>
@@ -937,5 +964,6 @@
   <slot>AngelMove()</slot>
   <slot>PlayMatfile()</slot>
   <slot>ILSCalibration()</slot>
+  <slot>circleTest()</slot>
  </slots>
 </ui>

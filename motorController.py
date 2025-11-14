@@ -86,16 +86,17 @@ class MotorController:
         return int(abs(angle) / 360.0 * steps_per_rev)
 
     def motor_initialize(self) -> bool:
-        """发送初始化包，获取初始步数"""
-        if self._is_initialized:
-            return True
+        """
+        发送初始化包，获取初始步数。
+        [FIX] 移除 _is_initialized 检查，此函数必须每次都执行 Write/Read
+        以清空缓冲区，为下一次 Write(Move) 做准备。
+        """
+        # if self._is_initialized:  <-- 删除这一行
+        #     return True           <-- 删除这一行
 
-        # 构造 40 字节初始化包
-        init_data = [
-            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-            0x55, 0x04, 0xD9, 0x04, 0xD9, 0x01
-        ]
+        # 构造 40 字节初始化包 (您已修复)
+        init_data = [0] * (self.INIT_PACKET_SIZE - 6)
+        init_data.extend([0x55, 0x04, 0xD9, 0x04, 0xD9, 0x01])
         init_packet = (c_ubyte * self.INIT_PACKET_SIZE)(*init_data)
 
         length = ULONG(self.INIT_PACKET_SIZE)
@@ -103,6 +104,7 @@ class MotorController:
 
         if not success or length.value != self.INIT_PACKET_SIZE:
             print("[ERROR] Write init packet failed.")
+            self._is_initialized = False # 确保状态正确
             return False
 
         # 读取返回状态包（25字节）
@@ -112,6 +114,7 @@ class MotorController:
 
         if not success or recv_len.value < 16:
             print("[ERROR] Read init response failed.")
+            self._is_initialized = False # 确保状态正确
             return False
 
         # 解析 base_steps（字节12-15）
@@ -122,7 +125,8 @@ class MotorController:
             recv_buf[15]
         )
         self._is_initialized = True
-        print(f"[INFO] Motor initialized. Base steps: {self._base_steps}")
+        # 注意：这里我们不再打印 "Motor initialized"，因为它会刷屏
+        # print(f"[INFO] Motor initialized. Base steps: {self._base_steps}")
         return True
 
     def motor_start(self, angle: float) -> bool:
@@ -130,7 +134,7 @@ class MotorController:
         if math.isclose(angle, 0.0, abs_tol=1e-5):
             return True
 
-        if not self._is_initialized and not self.motor_initialize():
+        if not self._is_initialized or not self.motor_initialize():
             return False
 
         # 构造 35 字节控制包

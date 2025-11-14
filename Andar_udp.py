@@ -1026,6 +1026,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, e):
         self.UDP_disconnect()
+        self.MotorDisconnect()
         super().closeEvent(e)
 
 def message_handler(msg_type: QtMsgType, context, msg: str):

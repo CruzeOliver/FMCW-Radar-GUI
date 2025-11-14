@@ -5,6 +5,7 @@ from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
 from scipy.io import loadmat
 import numpy as np
+import collections
 import warnings
 import time
 import csv
@@ -131,6 +132,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             MUSIC2dSpectrum_placeholders=self.MUSIC2dSpectrum_placeholders
         )
         # 转台电机实例化
+        self.AZangelList = collections.deque(maxlen=5)
         self.CH375motor = motorController.MotorController()
         # 信号总线连接
         self.bus = Bus()
@@ -471,8 +473,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
 
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
-            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
-            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+            self.AZangelList.append(peak_az)
+            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,-peak_az,peak_el)
+            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, -peak_az, peak_el)
             self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
 
             # 更新表格显示距离、角度计算结果
@@ -1023,8 +1026,53 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.CH375motor.motor_start(angel)
         except ValueError as ve:
             self.bus.log.emit(f"[ERR]无效的角度输入")
+
     def circleTest(self):
-        print("开始电机循环测试")
+        stepAngel = 1.0   # 每次移动的角度
+        delayTime = 0.1   # 每次移动后的等待时间 (秒)
+        num_moves = 91    # 总共移动的次数
+        currentAngel = -45.0  # 初始角度
+        TestAngle = -100.0    # 测试角度
+
+        results_data = []
+        csv_header = ["CommandedAngle (currentAngel)", "CalculatedAngle (TestAngle)"]
+        self.bus.log.emit(f"[INFO] 开始执行 ")
+
+        # --- 2. 执行循环并收集数据 ---
+        for i in range(num_moves):
+            # 1. 启动电机移动
+            success = self.CH375motor.motor_start(stepAngel)
+            # 2. 检查移动是否成功
+            if success:
+                currentAngel += stepAngel
+                TestAngle = self.AZangelList[-1]
+                self.bus.log.emit(f"[INFO] 当前角度 = {currentAngel} 度，测试角度 = {TestAngle:.2f} 度")
+            else:
+                self.bus.log.emit(f"[ERR] motor_start 在第 {i+1} 次移动时失败。")
+                TestAngle = float('nan') # 标记为失败
+            # --- 3. 将当前行数据添加到结果列表中 ---
+            results_data.append([currentAngel, TestAngle])
+
+            # 4. 等待
+            time.sleep(delayTime)
+
+        self.bus.log.emit(f"[INFO] {num_moves} 次移动执行完毕。正在保存CSV...")
+        # --- 4. 循环结束后，将所有数据写入CSV文件 ---
+        try:
+            # 生成一个带时间戳的唯一文件名
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"motor_test_log_{timestamp}.csv"
+
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(csv_header)
+                writer.writerows(results_data)
+            self.bus.log.emit(f"[SUCCESS] 日志已成功保存到 {filename}")
+
+        except Exception as e:
+            # 捕获可能的文件写入错误 (例如权限问题)
+            self.bus.log.emit(f"[ERR] 写入CSV文件失败: {e}")
+
 
     def closeEvent(self, e):
         self.UDP_disconnect()

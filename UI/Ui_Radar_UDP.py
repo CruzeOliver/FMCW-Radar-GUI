@@ -17,9 +17,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QLineEdit,
-    QMainWindow, QMenuBar, QPushButton, QSizePolicy,
-    QSpacerItem, QStatusBar, QTabWidget, QTableWidget,
-    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
+    QMainWindow, QMenuBar, QPushButton, QRadioButton,
+    QSizePolicy, QSpacerItem, QStatusBar, QTabWidget,
+    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
+    QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -193,6 +194,26 @@ class Ui_MainWindow(object):
 
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_14)
+
+        self.horizontalLayout_17 = QHBoxLayout()
+        self.horizontalLayout_17.setObjectName(u"horizontalLayout_17")
+        self.radioButton_FFT = QRadioButton(self.groupBox_calibration)
+        self.radioButton_FFT.setObjectName(u"radioButton_FFT")
+
+        self.horizontalLayout_17.addWidget(self.radioButton_FFT)
+
+        self.radioButton_LS = QRadioButton(self.groupBox_calibration)
+        self.radioButton_LS.setObjectName(u"radioButton_LS")
+
+        self.horizontalLayout_17.addWidget(self.radioButton_LS)
+
+        self.radioButton_WLS = QRadioButton(self.groupBox_calibration)
+        self.radioButton_WLS.setObjectName(u"radioButton_WLS")
+
+        self.horizontalLayout_17.addWidget(self.radioButton_WLS)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_17)
 
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
@@ -635,6 +656,9 @@ class Ui_MainWindow(object):
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration Mode\u200c", None))
         self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Apply Calibration", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"ILSCalibration", None))
+        self.radioButton_FFT.setText(QCoreApplication.translate("MainWindow", u"FFT", None))
+        self.radioButton_LS.setText(QCoreApplication.translate("MainWindow", u"LS", None))
+        self.radioButton_WLS.setText(QCoreApplication.translate("MainWindow", u"WLS", None))
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))

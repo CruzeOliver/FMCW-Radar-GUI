@@ -521,6 +521,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.calibration_list_LS.append(zij_vector)
             self.warmup_count += 1
             if self.warmup_count == 20:
+                print("预热完成，将开始收集数据。")
                 # 预热阶段结束，计算基准平均值
                 warmup_vectors = np.array(self.calibration_list_LS)
                 # 计算每个通道的平均幅值
@@ -543,6 +544,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         current_count = len(self.calibration_list_LS)
 
         if current_count >= 50:
+            print("已收集 50 帧，将立即执行校准...")
             # 1. 计算平均值
             zij_vectors_to_calibrate = np.array(self.calibration_list_LS)
             zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0)
@@ -600,6 +602,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 warmup_vectors = np.array([data[0] for data in self.calibration_list_WLS])
                 self.warmup_avg = np.mean(np.abs(warmup_vectors), axis=0)
                 self.calibration_list_WLS.clear()
+                print("预热完成，将开始收集数据。")
             return
 
         # ================================
@@ -619,7 +622,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 阶段三：WLS 计算（核心加入防御）
         # ================================
         if current_count >= 50:
-
+            print("已收集 50 帧，将立即执行校准...")
             valid_zij_list = []
             valid_spectrum_list = []
             bad_indices = []
@@ -713,6 +716,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         2. 收集接下来的 50 帧数据。
         3. 对这 50 帧数据进行平均，并执行校准。
         """
+        calib_peak_bin = None  # 用于锁定峰值 Bin 的变量
         try:
             if iq_virtual_data.ndim != 3 or iq_virtual_data.shape[0] != 4:
                 print(f"错误: 输入IQ数据维度必须是 (4, N_obs, N_samples), 实际为 {iq_virtual_data.shape}")
@@ -725,7 +729,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             range_fft_results = np.fft.fft(iq_virtual_data, axis=2)
 
             # (B) 自动查找峰值 Bin (仅在第一次运行时执行一次)
-            if self.calib_peak_bin is None:
+            if calib_peak_bin is None:
                 # 仅在第一次运行时查找和锁定峰值
                 fft_magnitude = np.abs(range_fft_results)
                 avg_range_profile = np.mean(fft_magnitude, axis=(0, 1))

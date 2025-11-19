@@ -190,3 +190,39 @@ QDockWidget::title:active {
 background: #c1d8f0;
 color: white;
 }
+
+QRadioButton {
+    color: #333333;
+}
+
+QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #ced4da;
+    border-radius: 7px;  /* 圆形 */
+    background-color: white;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #007bff;
+}
+
+QRadioButton::indicator:checked {
+    border-color: #007bff;
+    background-color: #007bff;
+}
+
+QRadioButton::indicator:checked:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+QRadioButton::indicator:disabled {
+    background-color: #e9ecef;
+    border-color: #cccccc;
+}
+
+QRadioButton::indicator:checked:disabled {
+    background-color: #cccccc;
+    border-color: #bbbbbb;
+}

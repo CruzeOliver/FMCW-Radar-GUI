@@ -166,44 +166,71 @@ def phase_calibration(
 ###==================== 基于WLS进行IQ校准(2DFFT峰值点) ===================
 
 # [NEW] 辅助函数 1：从单帧频谱中估计噪声功率
-def estimate_noise_power_from_frame(spectrum_2d: np.ndarray, peak_idx: tuple) -> float:
-    """
-    (这是您需要添加的辅助函数)
-    从单帧 2D 频谱中估计本底噪声功率。
-    """
-    # 创建一个掩码，排除峰值及其周围区域
+def estimate_noise_power_from_frame(spectrum_2d, peak_idx, excl_win=3, mask_edges=True):
+    # spectrum_2d: 2D complex or magnitude array (range x doppler or similar)
+    # peak_idx: (r,c) or (row,col) index of detected peak
+    r0, c0 = peak_idx
     mask = np.ones(spectrum_2d.shape, dtype=bool)
-    c0, r0 = peak_idx
-    # 排除一个 5x5 的窗口
-    mask[max(0, c0-2) : c0+3, max(0, r0-2) : r0+3] = False
-    # 排除零多普勒/零距离轴
-    mask[0, :] = False
-    mask[:, 0] = False
+    # exclude a small window around peak
+    mask[max(0, r0-excl_win): r0+excl_win+1,
+         max(0, c0-excl_win): c0+excl_win+1] = False
+    if mask_edges:
+        # optionally exclude DC/zero axes (adjust depending on your layout)
+        mask[0, :] = False
+        mask[:, 0] = False
+    bg = np.abs(spectrum_2d[mask])
+    if bg.size == 0:
+        return 1e-9
+    # robust estimator: median power -> convert to mean approx
+    median_power = np.median(bg**2)
+    # convert median to mean approx for Rayleigh-like mag: mean_power ≈ k * median_power
+    # But simpler: use median_power directly and floor
+    return max(median_power, 1e-12)
 
-    # 计算噪声区域的平均功率
-    noise_power = np.mean(np.abs(spectrum_2d[mask])**2)
-    return noise_power if noise_power > 1e-9 else 1e-9
-
-# [NEW] 辅助函数 2：计算最终的 WLS 权重
-def calculate_weights(zij_vector_avg: np.ndarray, noise_power_matrix_avg: np.ndarray, n_obs: int) -> np.ndarray:
+def calculate_weights(zij_avg: np.ndarray,
+                              noise_power_vec: np.ndarray,
+                              n_obs: int = 1,
+                              eps: float = 1e-3,
+                              max_w: float = 1e4,
+                              normalize: bool = True,
+                              transform: str = 'linear'):
     """
-    (这是您需要添加的辅助函数)
-    根据平均信号和平均噪声，计算 WLS 权重。
+    zij_avg: (M,) complex, averaged over n_obs frames (M = K*L)
+    noise_power_vec: (M,) estimated noise power per virtual channel (same units as |z|^2)
+    returns w: (M,) weights (non-negative)
     """
-    n_ant = zij_vector_avg.shape[0]
-    weights = np.ones(n_ant)
+    M = zij_avg.shape[0]
+    # avoid zeros
+    noise_power_vec = np.maximum(noise_power_vec, 1e-12)
 
-    # 噪声功率在 N_obs 帧平均后，其方差降低 N_obs 倍
-    noise_var_avg = noise_power_matrix_avg / n_obs
+    # signal power after averaging
+    sig_power = np.abs(zij_avg)**2  # |mean(z)|^2
 
-    # w_i = SNR_est = (Signal_Power_avg - Noise_Power_avg) / Noise_Power_avg
+    # effective noise power after averaging: sigma2 / n_obs
+    noise_eff = noise_power_vec / max(1, n_obs)
+
+    # raw SNR estimate (non-negative)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        signal_power = np.abs(zij_vector_avg)**2
-        snr_est = (signal_power - noise_var_avg) / noise_var_avg
-        weights = np.maximum(snr_est, 1e-3) # 钳位，防止负权重
+        snr_raw = np.maximum((sig_power / noise_eff) - 1.0, 0.0)
 
-    return weights
+    # optional transform to compress dynamic range
+    if transform == 'log':
+        w = np.log1p(snr_raw)  # log(1+snr)
+    elif transform == 'sqrt':
+        w = np.sqrt(snr_raw)
+    else:
+        w = snr_raw  # identity
+
+    # clamp and floor
+    w = np.nan_to_num(w, nan=eps, posinf=max_w, neginf=eps)
+    w = np.clip(w, eps, max_w)
+
+    if normalize:
+        w = w / np.max(w)
+
+    return w
+
 
 
 def amplitude_calibration_wals(zij_vector: np.ndarray, weights: np.ndarray):

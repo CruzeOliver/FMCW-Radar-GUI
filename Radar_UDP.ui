@@ -438,16 +438,16 @@
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_16">
             <item>
-             <widget class="QPushButton" name="pushButton_MotorDisconnect">
+             <widget class="QPushButton" name="pushButton_MotorConnect">
               <property name="text">
-               <string>Motor Stop</string>
+               <string>Motor Init</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QPushButton" name="pushButton_MotorConnect">
+             <widget class="QPushButton" name="pushButton_MotorDisconnect">
               <property name="text">
-               <string>Motor Init</string>
+               <string>Motor Stop</string>
               </property>
              </widget>
             </item>

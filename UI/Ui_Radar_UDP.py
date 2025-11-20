@@ -314,15 +314,15 @@ class Ui_MainWindow(object):
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.horizontalLayout_16 = QHBoxLayout()
         self.horizontalLayout_16.setObjectName(u"horizontalLayout_16")
-        self.pushButton_MotorDisconnect = QPushButton(self.groupBox_motor)
-        self.pushButton_MotorDisconnect.setObjectName(u"pushButton_MotorDisconnect")
-
-        self.horizontalLayout_16.addWidget(self.pushButton_MotorDisconnect)
-
         self.pushButton_MotorConnect = QPushButton(self.groupBox_motor)
         self.pushButton_MotorConnect.setObjectName(u"pushButton_MotorConnect")
 
         self.horizontalLayout_16.addWidget(self.pushButton_MotorConnect)
+
+        self.pushButton_MotorDisconnect = QPushButton(self.groupBox_motor)
+        self.pushButton_MotorDisconnect.setObjectName(u"pushButton_MotorDisconnect")
+
+        self.horizontalLayout_16.addWidget(self.pushButton_MotorDisconnect)
 
 
         self.verticalLayout_4.addLayout(self.horizontalLayout_16)
@@ -667,8 +667,8 @@ class Ui_MainWindow(object):
         self.pushButton_CloseFile.setText(QCoreApplication.translate("MainWindow", u"Close Init", None))
         self.pushButton_SaveTable.setText(QCoreApplication.translate("MainWindow", u"Save Table", None))
         self.groupBox_motor.setTitle(QCoreApplication.translate("MainWindow", u"Motor Control", None))
-        self.pushButton_MotorDisconnect.setText(QCoreApplication.translate("MainWindow", u"Motor Stop", None))
         self.pushButton_MotorConnect.setText(QCoreApplication.translate("MainWindow", u"Motor Init", None))
+        self.pushButton_MotorDisconnect.setText(QCoreApplication.translate("MainWindow", u"Motor Stop", None))
         self.pushButton_2.setText(QCoreApplication.translate("MainWindow", u"Circle Test", None))
         self.pushButton_MoveAngel.setText(QCoreApplication.translate("MainWindow", u"Move", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_Placeholder), QCoreApplication.translate("MainWindow", u"Placeholder", None))

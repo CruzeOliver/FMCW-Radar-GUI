@@ -1,6 +1,6 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
-from PySide6.QtCore import QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
+from PySide6.QtCore import QThread,QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
 from scipy.io import loadmat
@@ -27,6 +27,91 @@ PKT_SIZE = 1024              # 每个UDP包固定 1024B
 # ================== Qt 信号总线 ==================
 class Bus(QObject):
     log         = Signal(str)     # log日志重定向
+
+class MotorTestWorker(QThread):
+    # 【关键修改】PySide6 使用 Signal 而不是 pyqtSignal
+    log_signal = Signal(str)     # 用于发日志给UI
+    finished_signal = Signal()   # 用于通知任务结束
+
+    def __init__(self, main_window_ref):
+        super().__init__()
+        self.main_ref = main_window_ref  # 获取主窗口引用(为了访问 motor 和 list)
+        self.is_running = True # 停止标志位
+
+    def run(self):
+        """这里是子线程，在这里 sleep 不会卡死界面"""
+        stepAngel = 1.0
+        delayTime = 1.0
+        num_moves = 91
+        currentAngel = -46.0
+
+        # 如果你需要每次重置 TestAngle，可以在这里初始化
+        TestAngle = -100.0
+
+        results_data = []
+        csv_header = ["CommandedAngle (currentAngel)", "CalculatedAngle (TestAngle)"]
+
+        self.log_signal.emit(f"[INFO] 线程启动: 开始执行圆周测试...")
+
+        for i in range(num_moves):
+            # 1. 安全退出机制
+            if not self.is_running:
+                self.log_signal.emit("[WARN] 测试被强制停止。")
+                return
+
+            # 2. 调用电机移动 (调用主窗口对象的方法)
+            # 假设 motor_start 只是发送USB指令，不涉及大量GUI操作，直接调用通常没问题
+            try:
+                success = self.main_ref.CH375motor.motor_start(stepAngel)
+            except Exception as e:
+                self.log_signal.emit(f"[ERR] 电机调用异常: {e}")
+                success = False
+
+            if success:
+                currentAngel += stepAngel
+                time.sleep(delayTime)  # 等待电机稳定
+
+                # --- 安全访问主线程的数据 ---
+                # 因为 AZangelList 可能正在被其他地方修改，加个异常处理更稳妥
+                try:
+                    if self.main_ref.AZangelList:
+                        TestAngle = self.main_ref.AZangelList[-1]
+                    else:
+                        TestAngle = 0.0
+                except:
+                    TestAngle = 0.0
+
+                self.log_signal.emit(f"[INFO] 当前角度={currentAngel:.1f}, 测得角度={TestAngle:.2f}")
+            else:
+                self.log_signal.emit(f"[ERR] 第 {i+1} 次移动失败")
+                TestAngle = float('nan')
+
+            results_data.append([currentAngel, TestAngle])
+
+        # --- 循环结束，保存文件 ---
+        self.log_signal.emit(f"[INFO] 采集完毕，正在保存 CSV...")
+        self.save_csv(results_data, csv_header)
+
+        # 发送结束信号
+        self.finished_signal.emit()
+
+    def save_csv(self, data, header):
+        try:
+            # 生成时间戳 (你需要确保 generate_unique_time 可以在这里调用，或者直接用 time 库)
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"motor_test_log_{timestamp}.csv"
+
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(data)
+
+            self.log_signal.emit(f"[SUCCESS] 文件保存成功: {filename}")
+        except Exception as e:
+            self.log_signal.emit(f"[ERR] 保存 CSV 失败: {e}")
+
+    def stop(self):
+        self.is_running = False
 
 # ================== 接收线程（Python threading + socket） ==================
 class UdpReceiver(threading.Thread):
@@ -322,8 +407,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if self.checkBox_CalibrationMode.isChecked():
             QMessageBox.information(self,"校准模式","已启用校准模式。\n"
                                     "请确保雷达正对自反靶进行校准。\n"
+                                    "默认校准模式为加权最小二乘法（WLS）。\n"
                                     "前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。\n"
                                     "校准结束后程序会自动断开连接，并关闭所有文件。")
+            self.radioButton_WLS.setChecked(True)
         else:
             QMessageBox.information(self, "校准模式", "已关闭校准模式。")
 
@@ -478,8 +565,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
             self.AZangelList.append(peak_az)
-            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,-peak_az,peak_el)
-            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, -peak_az, peak_el)
+            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
+            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
             self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
 
             # 更新表格显示距离、角度计算结果
@@ -531,7 +618,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return
 
         # --- 阶段二：正式校准与数据过滤 ---
-        if len(self.calibration_list_LS) < 50:
+        if len(self.calibration_list_LS) < 10:
             # 计算当前帧的幅值
             current_amplitudes = np.abs(zij_vector)
 
@@ -543,7 +630,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.calibration_list_LS.append(zij_vector)
         current_count = len(self.calibration_list_LS)
 
-        if current_count >= 50:
+        if current_count >= 10:
             print("已收集 50 帧，将立即执行校准...")
             # 1. 计算平均值
             zij_vectors_to_calibrate = np.array(self.calibration_list_LS)
@@ -555,7 +642,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 3. 保存
             filename = f"{self.generate_unique_time()} calibration_matrix_LS"
-            np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
+            np.savez(filename, alpha=alpha_matrix*0.9, phi=phi_matrix*0.9) # 适当缩放
 
             # 4. 清空列表并重置状态，为下一次校准做准备
             self.calibration_list_LS.clear()
@@ -755,12 +842,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return # 丢弃这一帧的数据，直接返回
 
         # --- 阶段二：收集 50 帧 ---
-        if len(self.calibration_list_FFTpeak) < 50:
+        if len(self.calibration_list_FFTpeak) < 10:
             self.calibration_list_FFTpeak.append(zij_vector)
             #print(f"收集中... {len(self.calibration_list_FFTpeak)}/50 帧 (总帧数: {self.warmup_count})")
 
             # 检查是否刚收集满50帧
-            if len(self.calibration_list_FFTpeak) < 50:
+            if len(self.calibration_list_FFTpeak) < 10:
                 return # 还未满50帧，返回
             else:
                 print("已收集 50 帧，将立即执行校准...")
@@ -772,8 +859,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 2. [FFT峰值法逻辑]
         try:
             complex_gain_matrix = zij_vector_avg.reshape((K_TX, L_RX))
-            alpha_matrix = np.abs(complex_gain_matrix)
-            phi_matrix = np.angle(complex_gain_matrix)
+            alpha_matrix = np.abs(complex_gain_matrix)*1.2
+            phi_matrix = np.angle(complex_gain_matrix)*1.2
             print("校准矩阵计算成功。")
         except Exception as e:
             print(f"错误: 无法重塑 (4,) 向量或计算矩阵: {e}")
@@ -795,7 +882,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.play_timer.stop()
         self.pushButton_Play.setText("Play")
         QMessageBox.information(self, "校准完成", f"校准矩阵保存到：\n{filename}。")
-
 
     def LoadCalibratioMode(self):
         """
@@ -1016,9 +1102,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             #得到2DFFT的峰值索引 对应的zij向量
             peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
             zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-            #self.calibrate_on_demand_WLS(zij_vector, self.fft_results_2D, peak_idx)
-            self.calibrate_on_demand_FFT(iq)
-            #self.calibrate_on_demand_LS(zij_vector)
+            if self.radioButton_WLS.isChecked():
+                self.calibrate_on_demand_WLS(zij_vector, self.fft_results_2D, peak_idx)
+            elif self.radioButton_FFT.isChecked():
+                self.calibrate_on_demand_FFT(iq)
+            elif self.radioButton_LS.isChecked():
+                self.calibrate_on_demand_LS(zij_vector)
 
         # 根据2dfft结果 将TX和RX 进行分开幅相校准
         if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
@@ -1029,6 +1118,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
         else:
             # 如果不校准，则直接使用原始iq数据
+
             calibrated_iq = iq
 
         if not self.checkBox_channel_calibration.isChecked() and self.v_calibration is not None:
@@ -1043,11 +1133,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_fft1d(self.fft_results_1D, sample)
         self.display.update_fft2d(self.fft_results_2D, sample, chirp)
 
-        #R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod = calculate_distance_from_fft2(self.fft_results_1D[0], chirp, sample)
-        # az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-        # print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
-        # angles, spectrum_dB, peak_angle = music_azimuth_spectrum_auto(self.fft_results_2D)
-        # self.display.update_MUSICspectrum(angles, spectrum_dB, peak_angle)
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
@@ -1242,6 +1327,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return None
 
 # ================== 电机控制相关内容 ==================
+
     def MotorConnect(self):
         if self.CH375motor.usb_initialize() and self.CH375motor.motor_initialize():
             self.pushButton_MotorDisconnect.setEnabled(True)
@@ -1263,55 +1349,36 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.bus.log.emit(f"[ERR]无效的角度输入")
 
     def circleTest(self):
-        stepAngel = 1.0   # 每次移动的角度
-        delayTime = 0.1   # 每次移动后的等待时间 (秒)
-        num_moves = 91    # 总共移动的次数
-        currentAngel = -46.0  # 初始角度
-        TestAngle = -100.0    # 测试角度
+        """
+        点击按钮时执行此函数
+        """
+        # 防止重复启动
+        if hasattr(self, 'worker_thread') and self.worker_thread.isRunning():
+            self.worker_thread.is_running = False  # 先请求停止当前线程
+            self.bus.log.emit("[WARN] 测试正在进行中。")
+            return
 
-        results_data = []
-        csv_header = ["CommandedAngle (currentAngel)", "CalculatedAngle (TestAngle)"]
-        self.bus.log.emit(f"[INFO] 开始执行 ")
+        # 1. 创建线程实例
+        self.worker_thread = MotorTestWorker(self)
 
-        # --- 2. 执行循环并收集数据 ---
-        for i in range(num_moves):
-            # 1. 启动电机移动
-            success = self.CH375motor.motor_start(stepAngel)
-            # 2. 检查移动是否成功
-            if success:
-                currentAngel += stepAngel
-                TestAngle = self.AZangelList[-1]
-                self.bus.log.emit(f"[INFO] 当前角度 = {currentAngel} 度，测试角度 = {TestAngle:.2f} 度")
-            else:
-                self.bus.log.emit(f"[ERR] motor_start 在第 {i+1} 次移动时失败。")
-                TestAngle = float('nan') # 标记为失败
-            # --- 3. 将当前行数据添加到结果列表中 ---
-            results_data.append([currentAngel, TestAngle])
+        # 2. 连接信号 (连接到你的日志输出函数)
+        self.worker_thread.log_signal.connect(self.handle_thread_log)
+        self.worker_thread.finished_signal.connect(self.handle_test_finished)
 
-            # 4. 等待
-            time.sleep(delayTime)
+        # 3. 启动线程
+        self.worker_thread.start()
 
-        self.bus.log.emit(f"[INFO] {num_moves} 次移动执行完毕。正在保存CSV...")
-        # --- 4. 循环结束后，将所有数据写入CSV文件 ---
-        try:
-            # 生成一个带时间戳的唯一文件名
-            timestamp = self.generate_unique_time()
-            filename = f"motor_test_log_{timestamp}.csv"
+    def handle_thread_log(self, message):
+        """接收子线程发来的文本，转发给你的 bus.log"""
+        self.bus.log.emit(message)
 
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(csv_header)
-                writer.writerows(results_data)
-            self.bus.log.emit(f"[SUCCESS] 日志已成功保存到 {filename}")
+    def handle_test_finished(self):
+        self.bus.log.emit("[INFO] 测试流程完全结束。")
 
-        except Exception as e:
-            # 捕获可能的文件写入错误 (例如权限问题)
-            self.bus.log.emit(f"[ERR] 写入CSV文件失败: {e}")
 
 
     def closeEvent(self, e):
         self.UDP_disconnect()
-        self.MotorDisconnect()
         super().closeEvent(e)
 
 def message_handler(msg_type: QtMsgType, context, msg: str):

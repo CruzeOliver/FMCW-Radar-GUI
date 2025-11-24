@@ -64,7 +64,7 @@ class MotorTestWorker(QThread):
             try:
                 success = self.main_ref.CH375motor.motor_start(stepAngel)
             except Exception as e:
-                self.log_signal.emit(f"[ERR] 电机调用异常: {e}")
+                self.log_signal.emit(f"⛔ 电机调用异常: {e}")
                 success = False
 
             if success:
@@ -83,7 +83,7 @@ class MotorTestWorker(QThread):
 
                 self.log_signal.emit(f"[INFO] 当前角度={currentAngel:.1f}, 测得角度={TestAngle:.2f}")
             else:
-                self.log_signal.emit(f"[ERR] 第 {i+1} 次移动失败")
+                self.log_signal.emit(f"⛔ 第 {i+1} 次移动失败")
                 TestAngle = float('nan')
 
             results_data.append([currentAngel, TestAngle])
@@ -106,9 +106,9 @@ class MotorTestWorker(QThread):
                 writer.writerow(header)
                 writer.writerows(data)
 
-            self.log_signal.emit(f"[SUCCESS] 文件保存成功: {filename}")
+            self.log_signal.emit(f"✅ 文件保存成功: {filename}")
         except Exception as e:
-            self.log_signal.emit(f"[ERR] 保存 CSV 失败: {e}")
+            self.log_signal.emit(f"⛔ 保存 CSV 失败: {e}")
 
     def stop(self):
         self.is_running = False
@@ -405,14 +405,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def CalibrationModeMessage(self):
         """校准模式启用提示"""
         if self.checkBox_CalibrationMode.isChecked():
-            QMessageBox.information(self,"校准模式","已启用校准模式。\n"
-                                    "请确保雷达正对自反靶进行校准。\n"
-                                    "默认校准模式为加权最小二乘法（WLS）。\n"
-                                    "前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。\n"
-                                    "校准结束后程序会自动断开连接，并关闭所有文件。")
+            self.bus.log.emit("⚠️已启用校准模式。\n"
+                                "请确保雷达正对自反靶进行校准。\n"
+                                "默认校准模式为加权最小二乘法（WLS）。\n"
+                                "前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。\n"
+                                "校准结束后程序会自动断开连接，并关闭所有文件。")
             self.radioButton_WLS.setChecked(True)
         else:
-            QMessageBox.information(self, "校准模式", "已关闭校准模式。")
+            self.bus.log.emit("⚠️已关闭校准模式。")
 
     def SaveMatChange(self):
         """启用或关闭保存 .mat 文件功能"""
@@ -420,14 +420,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.buffer = []  # 清空缓存
             if not self.save_filename:
                 self.save_filename = f"{self.generate_unique_time()}_raw_data_py.mat"
-            self.bus.log.emit("[OK]已启用原始数据保存功能。\n"
+            self.bus.log.emit("✅已启用原始数据保存功能。\n"
                               f"保存文件：{self.save_filename}\n"
                               "每100帧数据自动保存一次，程序关闭时会保存剩余缓存。")
         else:
             self.save_buffer_to_mat()  # 保存剩余缓存
             self.buffer = []  # 清空缓存
             self.save_filename = None
-            self.bus.log.emit("[OK]已关闭原始数据保存功能。")
+            self.bus.log.emit("✅已关闭原始数据保存功能。")
 
     # ---- 重定向日志到 textEdit_log ----
     def _log(self, s: str):
@@ -457,14 +457,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.frame_consumer_timer.start(10) # 每 10ms 检查一次
             # 5. 准备发送用的 Socket
             self.tx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.bus.log.emit(f"[OK] 发送目标 {PEER_IP}:{PEER_PORT}")
+            self.bus.log.emit(f"✅ 发送目标 {PEER_IP}:{PEER_PORT}")
 
             self.pushButton_Connect.setEnabled(False)
             self.pushButton_Disconnect.setEnabled(True)
-            self.bus.log.emit("[OK] 已连接")
+            self.bus.log.emit("✅ 已连接")
 
         except Exception as e:
-            self.bus.log.emit(f"[ERR] 连接失败: {e!r}")
+            self.bus.log.emit(f"⛔ 连接失败: {e!r}")
             self.UDP_disconnect() # 出错时回滚
 
     # ---- 断开：停止Timer + 两个线程 + 关socket ----
@@ -489,7 +489,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 5. 清理队列
         self.raw_queue = None
         self.frame_queue = None
-        self.bus.log.emit("[OK] 已断开")
+        self.bus.log.emit("✅ 已断开")
         self.pushButton_Connect.setEnabled(True)
         self.pushButton_Disconnect.setEnabled(False)
 
@@ -618,7 +618,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return
 
         # --- 阶段二：正式校准与数据过滤 ---
-        if len(self.calibration_list_LS) < 10:
+        if len(self.calibration_list_LS) < 50:
             # 计算当前帧的幅值
             current_amplitudes = np.abs(zij_vector)
 
@@ -630,7 +630,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.calibration_list_LS.append(zij_vector)
         current_count = len(self.calibration_list_LS)
 
-        if current_count >= 10:
+        if current_count >= 50:
             print("已收集 50 帧，将立即执行校准...")
             # 1. 计算平均值
             zij_vectors_to_calibrate = np.array(self.calibration_list_LS)
@@ -642,7 +642,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 3. 保存
             filename = f"{self.generate_unique_time()} calibration_matrix_LS"
-            np.savez(filename, alpha=alpha_matrix*0.9, phi=phi_matrix*0.9) # 适当缩放
+            np.savez(filename, alpha=alpha_matrix*0.7, phi=phi_matrix*0.8) # 适当缩放
 
             # 4. 清空列表并重置状态，为下一次校准做准备
             self.calibration_list_LS.clear()
@@ -985,7 +985,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 except ImportError:
                     pass
                 scipy.io.savemat(self.save_filename, existing_data)
-                self.bus.log.emit(f"[OK] 数据成功保存到 {self.save_filename}，包含 {len(existing_data)} 帧数据")
+                self.bus.log.emit(f"✅ 数据成功保存到 {self.save_filename}，包含 {len(existing_data)} 帧数据")
 
         except Exception as e:
             print(f"写入文件时出错: {e}")
@@ -1332,13 +1332,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if self.CH375motor.usb_initialize() and self.CH375motor.motor_initialize():
             self.pushButton_MotorDisconnect.setEnabled(True)
             self.pushButton_MoveAngel.setEnabled(True)
-            self.bus.log.emit("[OK]电机连接成功")
+            self.bus.log.emit("✅电机连接成功")
         else:
-            self.bus.log.emit("[ERR]电机连接失败，请检查连接")
+            self.bus.log.emit("⛔电机连接失败，请检查连接")
 
     def MotorDisconnect(self):
         if self.CH375motor.motor_stop():
-            self.bus.log.emit("[OK]电机断开成功")
+            self.bus.log.emit("✅电机断开成功")
 
     def AngelMove(self):
         angel_str = self.lineEdit_MoveAngel.text()
@@ -1346,7 +1346,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             angel = float(angel_str)
             self.CH375motor.motor_start(angel)
         except ValueError as ve:
-            self.bus.log.emit(f"[ERR]无效的角度输入")
+            self.bus.log.emit(f"⛔无效的角度输入")
 
     def circleTest(self):
         """

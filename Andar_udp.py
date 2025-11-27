@@ -540,8 +540,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 #得到2DFFT的峰值索引 对应的zij向量
                 peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
                 zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-                self.calibrate_on_demand_WLS(zij_vector,self.fft_results_2D, peak_idx)
-                #self.calibrate_on_demand(zij_vector)
+                if self.radioButton_WLS.isChecked():
+                    self.calibrate_on_demand_WLS(zij_vector, self.fft_results_2D, peak_idx)
+                elif self.radioButton_FFT.isChecked():
+                    self.calibrate_on_demand_FFT(iq)
+                elif self.radioButton_LS.isChecked():
+                    self.calibrate_on_demand_LS(zij_vector)
 
             # 根据2dfft结果 将TX和RX 进行分开幅相校准
             if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
@@ -842,12 +846,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return # 丢弃这一帧的数据，直接返回
 
         # --- 阶段二：收集 50 帧 ---
-        if len(self.calibration_list_FFTpeak) < 10:
+        if len(self.calibration_list_FFTpeak) < 50:
             self.calibration_list_FFTpeak.append(zij_vector)
             #print(f"收集中... {len(self.calibration_list_FFTpeak)}/50 帧 (总帧数: {self.warmup_count})")
 
             # 检查是否刚收集满50帧
-            if len(self.calibration_list_FFTpeak) < 10:
+            if len(self.calibration_list_FFTpeak) < 50:
                 return # 还未满50帧，返回
             else:
                 print("已收集 50 帧，将立即执行校准...")
@@ -858,9 +862,17 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0) # shape (4,)
         # 2. [FFT峰值法逻辑]
         try:
-            complex_gain_matrix = zij_vector_avg.reshape((K_TX, L_RX))
-            alpha_matrix = np.abs(complex_gain_matrix)*1.2
-            phi_matrix = np.angle(complex_gain_matrix)*1.2
+            # ---- 正确的校准补偿因子计算（使用 TX0-RX0 作为参考） ----
+            ref_val = zij_vector_avg[0]   # TX0-RX0 作为参考通道
+            # 幅度补偿因子：使校准后 |zij| 与参考一致
+            alpha = 1.5*np.abs(ref_val) / np.abs(zij_vector_avg)
+            # 相位补偿因子：使校准后相位与参考一致
+            phi = np.angle(ref_val) - np.angle(zij_vector_avg)
+            # 相位包装到 (-pi, pi]
+            phi = (phi + np.pi) % (np.pi) - np.pi
+            phi = -phi  # 取负号作为补偿
+            alpha_matrix = alpha.reshape((K_TX, L_RX))
+            phi_matrix   = phi.reshape((K_TX, L_RX))
             print("校准矩阵计算成功。")
         except Exception as e:
             print(f"错误: 无法重塑 (4,) 向量或计算矩阵: {e}")

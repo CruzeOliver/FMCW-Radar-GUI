@@ -215,16 +215,16 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp: int, real_sample_points: in
     tdm_frame = np.zeros((total_chirp_tdm, num_rx_physical, real_sample_points, 2), dtype=np.int16)
 
     # 1. TX0 对应 奇数索引 (1, 3, 5...)
-    tdm_frame[1::2, :, :, :] = tx0_iq # TX0 数据放入奇数 chirps
+    tdm_frame[1::2, :, :, :] = tx1_iq # TX0 数据放入奇数 chirps
 
     # 2. TX1 对应 偶数索引 (0, 2, 4...)
-    tdm_frame[0::2, :, :, :] = tx1_iq # TX1 数据放入偶数 chirps
+    tdm_frame[0::2, :, :, :] = tx0_iq # TX1 数据放入偶数 chirps
 
     # --- 3. 创建虚拟通道 ---
 
     # (32, 2, 256, 2) -> (32, 2, 256)
-    iq_complex = tdm_frame[..., 0] + 1j * tdm_frame[..., 1] # 假设 I, Q
-    #iq_complex = tdm_frame[..., 1] + 1j * tdm_frame[..., 0] # 将 I (索引 1) 作为实部，Q (索引 0) 作为虚部
+    #iq_complex = tdm_frame[..., 0] + 1j * tdm_frame[..., 1] # 假设 I, Q
+    iq_complex = tdm_frame[..., 1] + 1j * tdm_frame[..., 0] # 将 I (索引 1) 作为实部，Q (索引 0) 作为虚部
 
     # v0, v1 使用奇数索引的数据 (TX0)
     v0 = iq_complex[1::2, 0, :]  # TX0 → RX0 (奇数Chirp)

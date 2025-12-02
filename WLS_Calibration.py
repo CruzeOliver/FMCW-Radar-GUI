@@ -1,5 +1,60 @@
 import numpy as np
 import warnings
+from scipy.fft import fft, ifft, fftfreq
+###==================== 时延校准 ===================
+def align_iq_virtual(iq_virtual: np.ndarray, ref_ch_idx: int = 0) -> np.ndarray:
+    """
+    修正版 TDM-MIMO 虚拟通道 IQ 时域对齐（消除前后半段翻转问题）
+
+    Args:
+        iq_virtual: (4, chirp_per_tx, samples) 复数 IQ 数据
+        ref_ch_idx: 参考通道索引 (默认 0)
+
+    Returns:
+        aligned_iq: 对齐后的复数 IQ 数据，shape 与输入一致
+    """
+    num_ch, chirp_per_tx, num_samples = iq_virtual.shape
+    aligned_iq = np.zeros_like(iq_virtual, dtype=np.complex64)
+
+    # 1. 参考通道平均波形
+    ref_wave = iq_virtual[ref_ch_idx].mean(axis=0)
+
+    for ch in range(num_ch):
+        if ch == ref_ch_idx:
+            aligned_iq[ch] = iq_virtual[ch]
+            continue
+
+        # 当前通道平均波形
+        cur_wave = iq_virtual[ch].mean(axis=0)
+
+        # -------------------------
+        # 2. 整数采样对齐（互相关）
+        # -------------------------
+        corr = np.correlate(ref_wave.real, cur_wave.real, mode='full')
+        shift = corr.argmax() - (num_samples - 1)
+        aligned_iq[ch] = np.roll(iq_virtual[ch], shift, axis=-1)
+
+        # -------------------------
+        # 3. 亚样补偿（频域 phase slope）
+        # -------------------------
+        # FFT shift 保证前后半段对称处理
+        fft_ch = np.fft.fftshift(np.fft.fft(aligned_iq[ch], axis=-1), axes=-1)
+        fft_ref = np.fft.fftshift(np.fft.fft(ref_wave, axis=-1))
+
+        # 计算亚样偏移（峰值差）
+        ref_peak = np.argmax(np.abs(fft_ref))
+        cur_peak = np.argmax(np.abs(fft_ch))
+        sub_shift = ref_peak - cur_peak
+        if abs(sub_shift) > 1e-6:
+            k = np.arange(num_samples) - num_samples // 2  # 对应 fftshift 后索引
+            phase_slope = np.exp(-1j * 2 * np.pi * k * sub_shift / num_samples)
+            fft_ch *= phase_slope
+
+        # IFFT 回时域，并恢复顺序
+        aligned_iq[ch] = np.fft.ifft(np.fft.ifftshift(fft_ch, axes=-1), axis=-1)
+
+    return aligned_iq
+
 ###==================== 基于最小二乘法进行IQ校准(2DFFT峰值点) ===================
 def amplitude_calibration(zij_vector: np.ndarray):
     """

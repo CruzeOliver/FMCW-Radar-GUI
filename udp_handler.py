@@ -246,7 +246,6 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp: int, real_sample_points: in
     # 最终返回 (4, chirp_per_tx, real_sample_points)
     return iq_virtual
 
-
 # ================== 组装状态类 ==================
 class AsmState:
     """用于跟踪单帧组装的状态"""

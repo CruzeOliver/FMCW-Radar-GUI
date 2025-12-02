@@ -17,7 +17,7 @@ from udp_handler import *
 from display_pg import PgDisplay
 from ILSCalibration import *
 from WLS_Calibration import *
-
+from forTest import *
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
 PEER_IP = "192.168.1.55"     # 雷达设备IP
@@ -646,7 +646,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 3. 保存
             filename = f"{self.generate_unique_time()} calibration_matrix_LS"
-            np.savez(filename, alpha=alpha_matrix*0.7, phi=phi_matrix*0.8) # 适当缩放
+            np.savez(filename, alpha=alpha_matrix, phi=phi_matrix) # 适当缩放
 
             # 4. 清空列表并重置状态，为下一次校准做准备
             self.calibration_list_LS.clear()
@@ -779,8 +779,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             weights = calculate_weights(zij_vector_avg, avg_noise_power_per_channel, n_obs=current_count)
 
-            alpha_matrix = amplitude_calibration_wals(zij_vector_avg, weights)
-            phi_matrix = phase_calibration_wls(zij_vector_avg, weights)
+            alpha_matrix = 1.1*amplitude_calibration_wals(zij_vector_avg, weights)
+            phi_matrix = 1.1*phase_calibration_wls(zij_vector_avg, weights)
 
             filename = f"{self.generate_unique_time()} calibration_matrix_WLS"
             np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
@@ -870,9 +870,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             phi = np.angle(ref_val) - np.angle(zij_vector_avg)
             # 相位包装到 (-pi, pi]
             phi = (phi + np.pi) % (np.pi) - np.pi
-            phi = -phi  # 取负号作为补偿
-            alpha_matrix = alpha.reshape((K_TX, L_RX))
-            phi_matrix   = phi.reshape((K_TX, L_RX))
+            #phi = -phi  # 取负号作为补偿
+            alpha_matrix = 1.2*alpha.reshape((K_TX, L_RX))
+            phi_matrix   = 1.2*phi.reshape((K_TX, L_RX))
             print("校准矩阵计算成功。")
         except Exception as e:
             print(f"错误: 无法重塑 (4,) 向量或计算矩阵: {e}")
@@ -1103,6 +1103,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
+        iq = align_iq_virtual(iq)
+        iq = amplitude_spectrum_alignment(iq)
         #iq = reorder_frame(frame_data_flat, chirp, sample, 4, window=my_window)
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
@@ -1130,7 +1132,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
         else:
             # 如果不校准，则直接使用原始iq数据
-
             calibrated_iq = iq
 
         if not self.checkBox_channel_calibration.isChecked() and self.v_calibration is not None:
@@ -1386,8 +1387,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def handle_test_finished(self):
         self.bus.log.emit("[INFO] 测试流程完全结束。")
-
-
 
     def closeEvent(self, e):
         self.UDP_disconnect()

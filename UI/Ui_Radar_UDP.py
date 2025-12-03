@@ -26,7 +26,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1024, 829)
+        MainWindow.resize(1022, 822)
         MainWindow.setLayoutDirection(Qt.LeftToRight)
         MainWindow.setAutoFillBackground(True)
         self.centralwidget = QWidget(MainWindow)
@@ -184,16 +184,6 @@ class Ui_MainWindow(object):
 
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_9)
-
-        self.horizontalLayout_14 = QHBoxLayout()
-        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
-        self.pushButton = QPushButton(self.groupBox_calibration)
-        self.pushButton.setObjectName(u"pushButton")
-
-        self.horizontalLayout_14.addWidget(self.pushButton)
-
-
-        self.verticalLayout_5.addLayout(self.horizontalLayout_14)
 
         self.horizontalLayout_17 = QHBoxLayout()
         self.horizontalLayout_17.setObjectName(u"horizontalLayout_17")
@@ -614,7 +604,7 @@ class Ui_MainWindow(object):
         self.widget_extra.raise_()
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 1024, 22))
+        self.menubar.setGeometry(QRect(0, 0, 1022, 22))
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
@@ -632,7 +622,6 @@ class Ui_MainWindow(object):
         self.pushButton_MotorDisconnect.clicked.connect(MainWindow.MotorDisconnect)
         self.pushButton_MoveAngel.clicked.connect(MainWindow.AngelMove)
         self.pushButton_Play.clicked.connect(MainWindow.PlayMatfile)
-        self.pushButton.clicked.connect(MainWindow.ILSCalibration)
         self.pushButton_2.clicked.connect(MainWindow.circleTest)
 
         self.tabWidget_Message.setCurrentIndex(0)
@@ -655,7 +644,6 @@ class Ui_MainWindow(object):
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration Mode\u200c", None))
         self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Apply Calibration", None))
-        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"ILSCalibration", None))
         self.radioButton_FFT.setText(QCoreApplication.translate("MainWindow", u"FFT", None))
         self.radioButton_LS.setText(QCoreApplication.translate("MainWindow", u"LS", None))
         self.radioButton_WLS.setText(QCoreApplication.translate("MainWindow", u"WLS", None))

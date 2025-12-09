@@ -230,6 +230,31 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_11)
 
+        self.horizontalLayout_18 = QHBoxLayout()
+        self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
+        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_18.addItem(self.horizontalSpacer_3)
+
+        self.checkBox_addnoise = QCheckBox(self.groupBox_calibration)
+        self.checkBox_addnoise.setObjectName(u"checkBox_addnoise")
+        self.checkBox_addnoise.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_18.addWidget(self.checkBox_addnoise)
+
+        self.checkBox_align_iq = QCheckBox(self.groupBox_calibration)
+        self.checkBox_align_iq.setObjectName(u"checkBox_align_iq")
+        self.checkBox_align_iq.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_18.addWidget(self.checkBox_align_iq)
+
+        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_18.addItem(self.horizontalSpacer_4)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_18)
+
 
         self.verticalLayout.addWidget(self.groupBox_calibration)
 
@@ -648,6 +673,8 @@ class Ui_MainWindow(object):
         self.radioButton_LS.setText(QCoreApplication.translate("MainWindow", u"LS", None))
         self.radioButton_WLS.setText(QCoreApplication.translate("MainWindow", u"WLS", None))
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
+        self.checkBox_addnoise.setText(QCoreApplication.translate("MainWindow", u"Add Noise", None))
+        self.checkBox_align_iq.setText(QCoreApplication.translate("MainWindow", u"Align IQ", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))
         self.pushButton_Play.setText(QCoreApplication.translate("MainWindow", u"Play", None))

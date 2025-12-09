@@ -198,12 +198,6 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp: int, real_sample_points: in
     tx1_data = data_blocks[:, 2:4, :].reshape((chirp_per_tx, 1024))
 
     # --- 2. 构建 TDM 帧 ---
-
-    # 检查:
-    # 1 chirp (1024 int16s) = num_rx(2) * real_samples(256) * iq(2)
-    # 1024 = 2 * 256 * 2 = 1024.
-    # 匹配成功!
-
     try:
         # (16, 1024) -> (16, 2, 256, 2)
         tx0_iq = tx0_data.reshape((chirp_per_tx, num_rx_physical, real_sample_points, 2))
@@ -236,6 +230,111 @@ def reorder_frame_TDMMIMO(frame_bytes: bytes, chirp: int, real_sample_points: in
 
     # 堆叠成 (4, 16, 256)
     iq_virtual = np.stack([v0, v1, v2, v3], axis=0).astype('complex64')
+
+    # 应用窗函数
+    if window is not None:
+        if len(window) != real_sample_points:
+            raise ValueError(f"window 长度 {len(window)} 必须等于真实采样点 {real_sample_points}")
+        iq_virtual = iq_virtual * window[np.newaxis, np.newaxis, :]
+
+    # 最终返回 (4, chirp_per_tx, real_sample_points)
+    return iq_virtual
+
+def reorder_frame_TDMMIMO_with_noise(frame_bytes: bytes, chirp: int, real_sample_points: int, txrx: int,
+                          window: np.ndarray | None = None,
+                          sim_noise_ch: int = -1,      # [新增] 指定注入噪声的虚拟通道索引 (0-3), -1表示不注入
+                          sim_noise_level: float = 0.0 # [新增] 噪声标准差 (幅度), 建议 500~2000
+                          ) -> np.ndarray:
+    """
+    (最终方案 v8 - 匹配 C 内存和 UDP) + [鲁棒性验证功能]
+
+    sim_noise_ch:  指定要"搞坏"的通道索引 (例如 1 代表 TX0RX1)
+    sim_noise_level: 噪声强度 (ADC数据通常在几千量级, 建议设置 500-3000 来模拟显著干扰)
+    """
+
+    # --- 0. 基本参数和检查 ---
+    if txrx != 4:
+        raise ValueError("此重排逻辑专为 TXRXTYPE == 4 (TDM-MIMO) 设计")
+
+    data = np.frombuffer(frame_bytes, dtype=np.int16)
+
+    total_chirp_tdm = chirp    # e.g., 32
+    num_rx_physical = 2
+
+    num_c_loops = (chirp ) // 2 # 16
+
+    expected_int16s = num_c_loops * 4 * 512 # 16 * 4 * 512 = 32,768
+
+    if data.size != expected_int16s:
+        # [建议] 这里最好不要直接 raise, 而是打印 log 并返回 None, 增强系统鲁棒性
+        print(f"[Warning] 帧数据大小错误: 期望 {expected_int16s} (int16), 实际 {data.size}")
+        return None
+    chirp_per_tx = chirp // 2  # tx的chirp是总的chirp的一半
+
+    # --- 1. “解交错” (Undo C code's interleaving) ---
+    try:
+        # C 循环 16 次, 每次发 4 包
+        # (16, 4, 512)
+        data_blocks = data.reshape((num_c_loops, 4, 512))
+    except Exception as e:
+        raise ValueError(f"Reshape 失败 (步骤1): {e}")
+
+    tx0_data = data_blocks[:, 0:2, :].reshape((chirp_per_tx, 1024))
+    tx1_data = data_blocks[:, 2:4, :].reshape((chirp_per_tx, 1024))
+
+    # --- 2. 构建 TDM 帧 ---
+    try:
+        # (16, 1024) -> (16, 2, 256, 2)
+        tx0_iq = tx0_data.reshape((chirp_per_tx, num_rx_physical, real_sample_points, 2))
+        tx1_iq = tx1_data.reshape((chirp_per_tx, num_rx_physical, real_sample_points, 2))
+    except ValueError as e:
+        raise ValueError(f"Reshape 失败 (步骤2): {e}. 检查 {tx0_data.size} 和 {(chirp_per_tx, num_rx_physical, real_sample_points, 2)}")
+
+    # 创建 TDM 帧 (32, 2, 256, 2)
+    tdm_frame = np.zeros((total_chirp_tdm, num_rx_physical, real_sample_points, 2), dtype=np.int16)
+    tdm_frame[1::2, :, :, :] = tx1_iq
+
+    # 2. TX1 对应 偶数索引 (0, 2, 4...)
+    tdm_frame[0::2, :, :, :] = tx0_iq # TX1 数据放入偶数 chirps
+
+    # --- 3. 创建虚拟通道 ---
+    iq_complex = tdm_frame[..., 1] + 1j * tdm_frame[..., 0] # 将 I (索引 1) 作为实部，Q (索引 0) 作为虚部
+
+    # v0, v1 使用奇数索引的数据 (TX0)
+    v0 = iq_complex[1::2, 0, :]  # TX0 → RX0 (奇数Chirp)
+    v1 = iq_complex[1::2, 1, :]  # TX0 → RX1 (奇数Chirp)
+
+    # v2, v3 使用偶数索引的数据 (TX1)
+    v2 = iq_complex[0::2, 0, :]  # TX1 → RX0 (偶数Chirp)
+    v3 = iq_complex[0::2, 1, :]  # TX1 → RX1 (偶数Chirp)
+
+    # 堆叠成 (4, 16, 256)
+    iq_virtual = np.stack([v0, v1, v2, v3], axis=0).astype('complex64')
+
+    # ==========================================================
+    # --- [关键修改] 4. 注入半实物仿真噪声 (仅用于WLS验证) ---
+    # ==========================================================
+    if sim_noise_ch >= 0 and sim_noise_level > 0:
+        # 确保索引有效 (0-3)
+        if 0 <= sim_noise_ch < 4:
+            # 仅在第一次调用时打印，避免刷屏 (逻辑需在外部控制，这里简单打印)
+            # print(f"[Simulation Warning] 正在向虚拟通道 CH{sim_noise_ch} 注入强度为 {sim_noise_level} 的高斯噪声!")
+
+            # 生成复高斯白噪声 (Circularly Symmetric Complex Gaussian Noise)
+            # 形状匹配: (chirp_per_tx, real_sample_points)
+            noise_shape = iq_virtual[sim_noise_ch].shape
+
+            # 实部虚部独立生成，标准差为 sim_noise_level
+            # 实际叠加功率会是 2 * level^2
+            noise_real = np.random.normal(0, sim_noise_level, noise_shape)
+            noise_imag = np.random.normal(0, sim_noise_level, noise_shape)
+            complex_noise = noise_real + 1j * noise_imag
+
+            # 叠加噪声到指定通道
+            iq_virtual[sim_noise_ch] += complex_noise
+        else:
+            print(f"[Simulation Error] 无效的噪声通道索引: {sim_noise_ch}")
+    # ==========================================================
 
     # 应用窗函数
     if window is not None:

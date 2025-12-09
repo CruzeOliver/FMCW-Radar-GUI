@@ -139,19 +139,14 @@ class UdpReceiver(threading.Thread):
         while not self._stop_evt.is_set():
             try:
                 data, (sip, sport) = self._sock.recvfrom(PKT_SIZE * 2) # 缓冲区稍大
-
-                # (来自B方案) 过滤IP
                 if sip != self.peer_ip:
                     continue
-
                 # 将原始包放入队列，由 RobustFrameAssembler 处理
                 self.raw_queue.put((time.time(), data))
-
             except socket.timeout:
                 continue
             except OSError:
                 break
-
         if self._sock:
             self._sock.close()
         print("[UdpReceiver] 接收线程已退出")
@@ -477,7 +472,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.assembler_thread.join(timeout=1.0)
             self.assembler_thread = None
         # 3. 停止生产者线程 (receiver)
-        if self.receiver_thread:  # 替换 self.rx_thread
+        if self.receiver_thread:
             self.receiver_thread.stop()
             self.receiver_thread.join(timeout=1.0) # join() 等待线程真正退出
             self.receiver_thread = None
@@ -865,14 +860,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # ---- 正确的校准补偿因子计算（使用 TX0-RX0 作为参考） ----
             ref_val = zij_vector_avg[0]   # TX0-RX0 作为参考通道
             # 幅度补偿因子：使校准后 |zij| 与参考一致
-            alpha = 1.5*np.abs(ref_val) / np.abs(zij_vector_avg)
+            alpha = np.abs(ref_val) / np.abs(zij_vector_avg)
             # 相位补偿因子：使校准后相位与参考一致
             phi = np.angle(ref_val) - np.angle(zij_vector_avg)
+            phi = -phi
             # 相位包装到 (-pi, pi]
-            phi = (phi + np.pi) % (np.pi) - np.pi
+            phi = (phi + np.pi) % (2 * np.pi) - np.pi
             #phi = -phi  # 取负号作为补偿
-            alpha_matrix = 1.2*alpha.reshape((K_TX, L_RX))
-            phi_matrix   = 1.2*phi.reshape((K_TX, L_RX))
+            alpha_matrix = alpha.reshape((K_TX, L_RX))
+            phi_matrix   = phi.reshape((K_TX, L_RX))
             print("校准矩阵计算成功。")
         except Exception as e:
             print(f"错误: 无法重塑 (4,) 向量或计算矩阵: {e}")
@@ -1102,10 +1098,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             my_window = np.hamming(sample)
         else:
             my_window = None
-        iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
-        iq = align_iq_virtual(iq)
-        iq = amplitude_spectrum_alignment(iq)
-        #iq = reorder_frame(frame_data_flat, chirp, sample, 4, window=my_window)
+        if self.checkBox_addnoise.isChecked():
+            iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=60000000)
+        else:
+            iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
+        if self.checkBox_align_iq.isChecked():
+            iq = align_iq_virtual(iq)
+
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)

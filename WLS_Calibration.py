@@ -2,6 +2,111 @@ import numpy as np
 import warnings
 from scipy.fft import fft, ifft, fftfreq
 ###==================== 时延校准 ===================
+
+def align_iq_strong(iq_virtual: np.ndarray, ref_ch_idx: int = 0) -> np.ndarray:
+    """
+    [强力版] 通道对齐：应对通道间存在巨大时延的情况。
+
+    逻辑流程：
+    1. 粗对齐 (Coarse): 使用包络互相关，计算整数采样点的位移，使用 np.roll 暴力搬移。
+    2. 精对齐 (Fine):   在粗对齐的基础上，使用频域相位斜率修补剩下的亚采样误差。
+
+    Args:
+        iq_virtual: (num_ch, chirps, samples) 复数数据
+        ref_ch_idx: 参考通道索引
+
+    Returns:
+        aligned_iq: 对齐后的数据
+    """
+    num_ch, n_chirps, n_samples = iq_virtual.shape
+    aligned_iq = np.zeros_like(iq_virtual, dtype=np.complex64)
+
+    # 1. 获取参考通道的平均包络 (作为对齐的标准)
+    #    取平均是为了抑制噪声，取 abs 是为了只看能量位置
+    ref_data = iq_virtual[ref_ch_idx]
+    ref_avg_complex = np.mean(ref_data, axis=0)
+    ref_envelope = np.abs(ref_avg_complex)
+
+    # 为了提高互相关精度，去直流 (可选，视波形情况而定)
+    ref_envelope = ref_envelope - np.mean(ref_envelope)
+
+    for ch in range(num_ch):
+        # 如果是参考通道，直接拷贝
+        if ch == ref_ch_idx:
+            aligned_iq[ch] = iq_virtual[ch]
+            continue
+
+        cur_data = iq_virtual[ch]
+        cur_avg_complex = np.mean(cur_data, axis=0)
+        cur_envelope = np.abs(cur_avg_complex)
+        cur_envelope = cur_envelope - np.mean(cur_envelope)
+
+        # ======================================================
+        # 步骤 A: 整数级粗对齐 (Integer Shift)
+        # ======================================================
+        # 使用互相关 (Cross-Correlation) 寻找两个包络的最佳重合点
+        # mode='full' 会返回长度为 2*N-1 的数组
+        correlation = np.correlate(ref_envelope, cur_envelope, mode='full')
+
+        # 找到相关性最大的索引
+        best_match_idx = np.argmax(correlation)
+
+        # 计算位移量 (lags)
+        # correlate 的中心点索引是 n_samples - 1
+        shift_integer = best_match_idx - (n_samples - 1)
+
+        # [核心操作] 暴力搬移数据
+        # np.roll 会循环移位，对于 FMCW 雷达这种周期性信号通常是安全的
+        # 如果 shift_integer > 0，说明 cur 在 ref 左边，要向右移
+        iq_coarse_aligned = np.roll(cur_data, shift_integer, axis=-1)
+
+        # 打印一下移了多少，方便您了解板子差异有多大
+        print(f"CH{ch} 粗对齐: 移动了 {shift_integer} 个采样点")
+
+        # ======================================================
+        # 步骤 B: 亚采样精对齐 (Sub-sample Fine Tuning)
+        # ======================================================
+        # 经过步骤A，峰值误差应该在 0.5 个点以内了。
+        # 现在用之前的 "相位斜率法" 修剩下的误差。
+
+        # 1. 更新当前波形 (用粗对齐后的数据)
+        cur_avg_coarse = np.mean(iq_coarse_aligned, axis=0)
+
+        # 2. 转频域 (加窗)
+        win = np.hanning(n_samples)
+        fft_ref = np.fft.fftshift(np.fft.fft(ref_avg_complex * win))
+        fft_cur = np.fft.fftshift(np.fft.fft(cur_avg_coarse * win))
+
+        # 3. 插值找精确峰值位置
+        def get_precise_peak_idx(fft_mag):
+            k = np.argmax(fft_mag)
+            if k == 0 or k == len(fft_mag)-1: return float(k)
+            y0, y1, y2 = fft_mag[k-1], fft_mag[k], fft_mag[k+1]
+            denom = y0 - 2*y1 + y2
+            if denom == 0: return float(k)
+            return k - (y2 - y0) / (2 * denom) # Parabolic interpolation
+
+        peak_ref = get_precise_peak_idx(np.abs(fft_ref))
+        peak_cur = get_precise_peak_idx(np.abs(fft_cur))
+
+        # 4. 计算剩余的微小误差
+        shift_fractional = peak_ref - peak_cur
+
+        # 5. 应用相位斜率补偿
+        # 对 "未加窗" 的粗对齐数据做 FFT
+        raw_fft_frames = np.fft.fftshift(np.fft.fft(iq_coarse_aligned, axis=-1), axes=-1)
+
+        k_vec = np.arange(n_samples) - n_samples // 2
+        phase_slope = np.exp(-1j * 2 * np.pi * k_vec * shift_fractional / n_samples)
+
+        corrected_fft = raw_fft_frames * phase_slope[np.newaxis, :]
+
+        # 6. IFFT 还原
+        aligned_iq[ch] = np.fft.ifft(np.fft.ifftshift(corrected_fft, axes=-1), axis=-1)
+
+    return aligned_iq
+
+
 def align_iq_virtual(iq_virtual: np.ndarray, ref_ch_idx: int = 0) -> np.ndarray:
     """
     修正版 TDM-MIMO 虚拟通道 IQ 时域对齐（消除前后半段翻转问题）
@@ -285,7 +390,6 @@ def calculate_weights(zij_avg: np.ndarray,
         w = w / np.max(w)
 
     return w
-
 
 
 def amplitude_calibration_wals(zij_vector: np.ndarray, weights: np.ndarray):

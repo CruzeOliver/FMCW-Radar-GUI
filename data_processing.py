@@ -447,19 +447,32 @@ def _build_czt_aw(f_start, B, M, fs):
     return A, W, df, f_start
 
 def _coarse_peak_fft(x_td, fs):
+    GUARD_BINS = 4   # ← 写死：剔除前 4 个 bin（直达波）
+
     N = x_td.shape[-1]
     X = np.fft.fft(x_td, n=N)
-    X_pos = X[: N//2 + 1]
-    mag2 = np.abs(X_pos)**2
+    X_pos = X[: N // 2 + 1]
+    mag2 = np.abs(X_pos) ** 2
+    # ---- 剔除直达波 bin ----
+    if GUARD_BINS > 0:
+        mag2[:GUARD_BINS] = 0.0
+    # ---- 峰值搜索 ----
     kmax = int(np.argmax(mag2))
-    if 0 < kmax < (mag2.size - 1):
-        delta = _parabolic_delta(mag2[kmax-1], mag2[kmax], mag2[kmax+1])
+    # ---- Macleod（三点二次插值）----
+    if GUARD_BINS < kmax < (mag2.size - 1):
+        delta = _parabolic_delta(
+            mag2[kmax - 1],
+            mag2[kmax],
+            mag2[kmax + 1]
+        )
     else:
         delta = 0.0
     f_bin = fs / N
     f_fft_peak = kmax * f_bin
     f_macleod  = (kmax + delta) * f_bin
+
     return kmax, f_fft_peak, f_macleod
+
 
 def calculate_distance_from_iq(
     iq,                     # ndarray, shape (n_ant, n_chirp, n_sample)

@@ -462,7 +462,7 @@ def phase_calibration_wls(zij_vector: np.ndarray, weights: np.ndarray, ref_tx: i
     """
     使用 [加权 WLS] 进行相位校准。
     """
-    tx_map = np.array([0, 0, 1, 1])
+    tx_map = np.array([0, 0, 1, 1]) 
     rx_map = np.array([0, 1, 0, 1])
     n_tx, n_rx = 2, 2
     n_virtual = 4

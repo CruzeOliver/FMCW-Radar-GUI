@@ -144,7 +144,7 @@ class MotorController:
         direction_bit = 0b00000111 if angle > 0 else 0b00000110
         packet[0] = 0b11100000 | direction_bit
 
-        # 速度参数（示例值）
+        # 速度参数
         speed = 100000 // 500  # 200
         speed_half = speed // 2
 

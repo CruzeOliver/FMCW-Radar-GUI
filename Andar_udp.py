@@ -878,7 +878,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         # 3. 保存
         filename = f"{self.generate_unique_time()} calibration_matrix_FFTpeak"
-        np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
+        np.savez(filename, alpha=1.2*alpha_matrix, phi=1.2*phi_matrix)
         print(f"校准矩阵已保存到: {filename}")
 
         # 5. 断开连接并提示 (您的代码)

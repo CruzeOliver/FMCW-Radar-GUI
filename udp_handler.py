@@ -345,6 +345,130 @@ def reorder_frame_TDMMIMO_with_noise(frame_bytes: bytes, chirp: int, real_sample
     # 最终返回 (4, chirp_per_tx, real_sample_points)
     return iq_virtual
 
+def reorder_frame_TDMMIMO_adaptive_noise(frame_bytes: bytes, chirp: int, real_sample_points: int, txrx: int,
+                                         window: np.ndarray | None = None,
+                                         sim_noise_ch: int = -1,         # 注入噪声的通道索引 (0-3)
+                                         sim_noise_level: float = 0.0,   # [手动模式] 固定噪声标准差
+                                         noise_auto_scale: bool = True,  # [新增] 是否开启自适应噪声强度
+                                         noise_ratio: float = 1.0        # [新增] 噪声与主峰的比例系数 (1.0 = 噪声底噪与主峰齐平)
+                                         ) -> np.ndarray:
+    """
+    (最终方案 v9 - 自适应噪声注入)
+
+    功能:
+    1. 解析 UDP 数据并重排为 TDM-MIMO 虚拟通道格式。
+    2. [鲁棒性验证]: 可根据当前帧的目标信号强度，自动注入"相当强度"的高斯白噪声。
+
+    参数详解:
+    - noise_auto_scale: True 时，忽略 sim_noise_level，自动计算噪声强度。
+    - noise_ratio:      控制噪声相对于主峰的大小。
+                        0.1 = 噪声底噪是主峰的 1/10 (轻微干扰)
+                        1.0 = 噪声底噪与主峰持平 (目标完全被淹没，0dB SNR)
+    """
+
+    # --- 0. 基本参数和检查 ---
+    if txrx != 4:
+        raise ValueError("此重排逻辑专为 TXRXTYPE == 4 (TDM-MIMO) 设计")
+
+    data = np.frombuffer(frame_bytes, dtype=np.int16)
+
+    total_chirp_tdm = chirp
+    num_rx_physical = 2
+    num_c_loops = (chirp ) // 2
+    expected_int16s = num_c_loops * 4 * 512
+
+    if data.size != expected_int16s:
+        print(f"[Warning] 帧数据大小错误: 期望 {expected_int16s}, 实际 {data.size}")
+        return None
+
+    chirp_per_tx = chirp // 2
+
+    # --- 1. “解交错” (Undo C code's interleaving) ---
+    try:
+        data_blocks = data.reshape((num_c_loops, 4, 512))
+    except Exception as e:
+        raise ValueError(f"Reshape 失败 (步骤1): {e}")
+
+    tx0_data = data_blocks[:, 0:2, :].reshape((chirp_per_tx, 1024))
+    tx1_data = data_blocks[:, 2:4, :].reshape((chirp_per_tx, 1024))
+
+    # --- 2. 构建 TDM 帧 ---
+    try:
+        tx0_iq = tx0_data.reshape((chirp_per_tx, num_rx_physical, real_sample_points, 2))
+        tx1_iq = tx1_data.reshape((chirp_per_tx, num_rx_physical, real_sample_points, 2))
+    except ValueError as e:
+        raise ValueError(f"Reshape 失败 (步骤2): {e}")
+
+    tdm_frame = np.zeros((total_chirp_tdm, num_rx_physical, real_sample_points, 2), dtype=np.int16)
+    tdm_frame[1::2, :, :, :] = tx1_iq
+    tdm_frame[0::2, :, :, :] = tx0_iq
+
+    # --- 3. 创建虚拟通道 ---
+    iq_complex = tdm_frame[..., 1] + 1j * tdm_frame[..., 0]
+
+    v0 = iq_complex[1::2, 0, :]  # TX0 -> RX0
+    v1 = iq_complex[1::2, 1, :]  # TX0 -> RX1
+    v2 = iq_complex[0::2, 0, :]  # TX1 -> RX0
+    v3 = iq_complex[0::2, 1, :]  # TX1 -> RX1
+
+    # 堆叠成 (4, chirp_per_tx, real_sample_points)
+    # 注意：此时还是纯净信号
+    iq_virtual = np.stack([v0, v1, v2, v3], axis=0).astype('complex64')
+
+    # ==========================================================
+    # --- [核心修改] 4. 自适应注入半实物仿真噪声 ---
+    # ==========================================================
+    if sim_noise_ch >= 0:
+        if 0 <= sim_noise_ch < 4:
+            target_ch_data = iq_virtual[sim_noise_ch] # 获取该通道数据 (16, 256)
+            current_sigma = sim_noise_level # 默认使用手动值
+
+            # --- 自动计算噪声强度逻辑 ---
+            if noise_auto_scale:
+                # 1. 快速进行 1D-FFT (Range FFT) 以寻找主峰
+                # 为了速度，只取第一个 chirp 或者取所有 chirp 的平均谱
+                # 这里我们对所有 chirp 做 FFT 并取最大值，确保捕捉到最强目标
+                fft_temp = np.fft.fft(target_ch_data, axis=1)
+                fft_mag = np.abs(fft_temp)
+
+                # 2. 找到当前帧、当前通道的最大峰值幅度 (Signal Peak)
+                signal_peak_mag = np.max(fft_mag)
+
+                # 3. 反推时域噪声标准差
+                # 公式: Sigma_time = (Signal_Peak * Ratio) / sqrt(N_points)
+                # 解释: FFT 处理增益为 N，但噪声是非相干叠加，幅度增益为 sqrt(N)
+                current_sigma = (signal_peak_mag * noise_ratio) / np.sqrt(real_sample_points)
+
+                # 保护措施：如果完全没有信号（全是0），防止 sigma 为 0
+                if current_sigma < 1e-6:
+                    current_sigma = 10.0
+
+            # --- 生成并注入噪声 ---
+            if current_sigma > 0:
+                noise_shape = target_ch_data.shape
+                # 生成复高斯白噪声
+                noise_real = np.random.normal(0, current_sigma, noise_shape)
+                noise_imag = np.random.normal(0, current_sigma, noise_shape)
+                complex_noise = noise_real + 1j * noise_imag
+
+                # 叠加噪声
+                iq_virtual[sim_noise_ch] += complex_noise
+
+                # [可选] 打印调试信息，观察自动计算出的噪声水平
+                print(f"[AutoNoise] CH:{sim_noise_ch} Peak:{signal_peak_mag:.1f} -> Inject Sigma:{current_sigma:.1f} (Ratio:{noise_ratio})")
+        else:
+            print(f"[Simulation Error] 无效的噪声通道索引: {sim_noise_ch}")
+    # ==========================================================
+
+    # 应用窗函数 (注意：窗函数通常在加噪之后，或者加噪之前？
+    # 物理上噪声是进入天线后的，所以应该先加噪再加窗，符合现在的顺序)
+    if window is not None:
+        if len(window) != real_sample_points:
+            raise ValueError(f"window 长度不对")
+        iq_virtual = iq_virtual * window[np.newaxis, np.newaxis, :]
+
+    return iq_virtual
+
 # ================== 组装状态类 ==================
 class AsmState:
     """用于跟踪单帧组装的状态"""

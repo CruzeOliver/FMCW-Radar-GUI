@@ -48,10 +48,11 @@ bin/Release/*
 bin/Debug/*
 !bin/Debug/*.ini
 *.mcap
-
+*.xlsx
 *.pyc
 *.mat
 *csv
 *npz
 dist/
 build/
+

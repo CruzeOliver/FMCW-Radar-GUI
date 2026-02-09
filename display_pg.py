@@ -55,6 +55,7 @@ class PgDisplay:
         self.pg_MUSIC2dSpectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSIC2dSpectrum 图像
 
         self._colormap = self._build_jet_colormap()
+        #self._colormap = pg.colormap.get('jet')
 
         self._init_adc(adc_placeholders)
         self._init_DirectWave(DirectWave_placeholders)
@@ -652,7 +653,16 @@ class PgDisplay:
                 fft_spectrum = np.clip(fft_spectrum, 0, max_val)
 
                 # 获取峰值频率点的索引（FFT）
-                peak_idx = np.argmax(fft_spectrum)
+                # 只保留正频率
+                pos_mask = freq_axis > 0
+                fft_pos = fft_spectrum[pos_mask]
+                freq_pos = freq_axis[pos_mask]
+
+                # 屏蔽前 4 个正频率 bin
+                n_exclude = 4
+                fft_pos[:n_exclude] = -np.inf
+
+                peak_idx = np.argmax(fft_pos)
 
                 # 提取峰值附近的频谱数据（动态调整范围）
                 range_bins = 2
@@ -760,6 +770,7 @@ class PgDisplay:
         fft2d_results: shape (4, n_chirp, n_points)
         显示 log10(|data|)，并将 range 轴截半
         """
+        # 这里的 keys 顺序要和 fft2d_results 的 axis 0 对应
         fft2d_keys = ['2DFFTtx0rx0', '2DFFTtx0rx1', '2DFFTtx1rx0', '2DFFTtx1rx1']
         max_range_bin = n_points // 2
 

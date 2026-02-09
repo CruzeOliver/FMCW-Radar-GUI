@@ -636,12 +636,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0)
 
             # 2. 调用校准函数
-            alpha_matrix = 1.1*amplitude_calibration(zij_vector_avg)
-            phi_matrix = 1.1*phase_calibration(zij_vector_avg)
+            alpha_matrix = amplitude_calibration(zij_vector_avg)
+            phi_matrix = phase_calibration(zij_vector_avg)
 
             # 3. 保存
             filename = f"{self.generate_unique_time()} calibration_matrix_LS"
-            np.savez(filename, alpha=alpha_matrix, phi=phi_matrix) # 适当缩放
+            np.savez(filename, alpha=0.9*alpha_matrix, phi=0.9*phi_matrix) # 适当缩放
 
             # 4. 清空列表并重置状态，为下一次校准做准备
             self.calibration_list_LS.clear()
@@ -1099,7 +1099,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             my_window = None
         if self.checkBox_addnoise.isChecked():
-            iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=60000000)
+            iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=5048899)
         else:
             iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
         if self.checkBox_align_iq.isChecked():
@@ -1138,6 +1138,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             ILS_calibration = self.v_calibration.reshape((4, 1, 1))
             self.fft_results_2D = self.fft_results_2D * ILS_calibration
 
+        #analyze_peak_info2(calibrated_iq)
         self.display.update_adc4(calibrated_iq, chirp, sample)
         self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
         self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)

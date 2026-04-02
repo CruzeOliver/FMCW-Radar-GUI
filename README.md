@@ -118,33 +118,29 @@ Each channel plots I (red) and Q (blue) separately for real-time observation of 
 ![adc](doc/image/ADC.png)
 
 ------
+### Real-time Direct Wave Angle (tab page: DirectWave)
 
-### Waterfall Plot (tab page: Signal Waterfall)
-
-Displays **time-frequency intensity distribution** of selected antenna channel signals.
-Visualizes amplitude variations across chirps and samples as a color-mapped heatmap, enabling temporal and spectral pattern analysis.
+Displays the **angle variation curves of the direct wave across 4 channels**.
+Using TX0RX0 as the baseline reference, this feature tracks and plots the relative angle changes of the virtual antennas as the frame number progresses.
 
 **Main Features:**
 
-- **Channel-specific visualization**
-  Focuses on a user-selected antenna channel (TX0RX0, TX0RX1, TX1RX0, TX1RX1) for detailed analysis.
-- **2D intensity mapping**
-  Y-axis represents chirp indices (1-32), X-axis represents sample points (0-255), with color encoding signal amplitude (brighter = stronger).
-- **Real-time rolling update**
-  New chirp data is inserted at the top of the plot, with older data scrolling downward to maintain a continuous time-series view.
-- **Auto-level adjustment**
-  Dynamically adjusts color scaling to optimize contrast for the current signal range.
+- **TX0RX0 baseline reference**
+  Calculates and displays the angle/phase differences of the other channels (TX0RX1, TX1RX0, TX1RX1) relative to TX0RX0.
+- **Multi-channel trend comparison**
+  Plots the angle variation of all 4 channels on the same graph, visually presenting the phase consistency across the antenna array over time.
+- **Frame-by-frame dynamic tracking**
+  The X-axis represents the progressing frame number, while the Y-axis shows the angle, allowing for continuous observation of phase shifts.
 
 **Use Cases:**
 
-- Identify time-varying signal patterns across chirps (e.g., Doppler shifts, transient reflections).
-- Detect sample-specific anomalies (e.g., noise bursts, synchronization errors).
-- Compare channel performance by switching between antenna combinations.
-- Monitor signal stability over multiple frames (e.g., fading, interference).
+- Evaluate the phase consistency and calibration quality of the multi-channel antenna array.
+- Monitor the hardware link for potential phase drift during continuous operation.
+- Assess the stability of the direct wave signal to ensure reliability for subsequent angle-of-arrival (AoA) estimations.
 
-### Signal Waterfall Interface
+### Direct Wave Angle Interface
 
-![Signal Waterfall Interface](doc/image/waterfall.png)
+![directwave](doc/image/directwave.png)
 
 ------
 
@@ -331,6 +327,58 @@ Based on 1D FFT, performs another FFT on the chirp dimension to generate a **ran
 ### 2D FFT (Range-Doppler Spectrum) Interface
 
 ![2D FFT (Range-Doppler Spectrum)](doc/image/2dfft.png)
+
+------
+
+### Real-time MUSIC Spectrum (tab page: MUSIC-Spectrum)
+
+Displays the **spatial spectrum calculated by the MUSIC (Multiple Signal Classification) algorithm**.
+It visualizes the energy distribution across different angles, providing high-resolution Angle of Arrival (AoA) estimation for radar signals.
+
+**Main Features:**
+
+- **High-resolution spatial spectrum**
+  The X-axis represents the angle (degrees) and the Y-axis represents the energy intensity (dB), clearly highlighting spectral peaks that correspond to target directions.
+- **Super-resolution AoA estimation**
+  Capable of distinguishing closely spaced targets that traditional FFT-based methods might merge, thanks to the subspace-based algorithm.
+- **Real-time dynamic updating**
+  Dynamically reflects the current spatial energy distribution and tracks target movements as new radar frames are processed.
+
+**Use Cases:**
+
+- Accurately locate and extract the angle of arrival for multiple targets.
+- Evaluate the super-resolution performance of the algorithm in separating closely spaced targets.
+- Analyze spatial noise levels and potential multipath interference.
+
+### MUSIC Spectrum Interface
+
+![music_spectrum](doc/image/Music%20Spectrum.png)
+
+------
+
+### Real-time 2D MUSIC Spectrum (tab page: 2D-MUSIC)
+
+Displays the **2D spatial spectrum calculated by the 2D-MUSIC algorithm**.
+It uses a color heatmap to visualize the energy distribution across both azimuth and elevation angles, providing a comprehensive view of the target's spatial direction.
+
+**Main Features:**
+
+- **Joint Azimuth & Elevation estimation**
+  The X-axis represents the azimuth angle (horizontal) and the Y-axis represents the elevation angle (vertical), offering complete 3D directional information of the targets.
+- **Energy heatmap visualization**
+  Uses color intensity to represent the signal energy strength (dB). The spatial energy peaks (target locations) are highly intuitive and easy to identify.
+- **Super-resolution in 2D**
+  Leverages the 2D-MUSIC algorithm to achieve super-resolution target separation in both horizontal and vertical planes, surpassing traditional 2D-FFT limitations.
+
+**Use Cases:**
+
+- Precisely estimate both azimuth and elevation angles for accurate 3D target localization.
+- Distinguish multiple targets that share the same azimuth but are located at different heights/elevations (or vice versa).
+- Comprehensively analyze multipath interference and spatial background noise in a 2D angular domain.
+
+### 2D MUSIC Spectrum Interface
+
+![2d_music_spectrum](doc/image/2DMusic%20Spectrum.png)
 
 ------
 

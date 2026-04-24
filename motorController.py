@@ -3,13 +3,17 @@ from ctypes import (
     c_bool, c_uint, c_void_p, c_ulong, POINTER, c_ubyte, byref
 )
 import os
+import sys
 from typing import Optional
 import math
 
-# 类型别名
-BOOL = c_bool
-ULONG = c_ulong
-PUCHAR = POINTER(c_ubyte)
+IS_WINDOWS = sys.platform.startswith("win")
+
+if IS_WINDOWS:
+    # 类型别名
+    BOOL = c_bool
+    ULONG = c_ulong
+    PUCHAR = POINTER(c_ubyte)
 
 class MotorController:
     """
@@ -26,6 +30,15 @@ class MotorController:
     STATUS_PACKET_SIZE = 25
 
     def __init__(self, dll_path: Optional[str] = None):
+        if not IS_WINDOWS:
+            self._is_available = False
+            self._base_steps = 0
+            self._total_angle = 0.0
+            self._is_initialized = False
+            return
+
+        self._is_available = True
+
         if dll_path is None:
             # 默认查找同目录下的 DLL
             dll_path = os.path.join(os.path.dirname(__file__), "CH375DLL64.dll")
@@ -68,6 +81,9 @@ class MotorController:
 
     def usb_initialize(self) -> bool:
         """打开设备并设置超时"""
+        if not IS_WINDOWS:
+            print("[INFO] Motor controller not available on non-Windows platform")
+            return True
         handle = self._CH375OpenDevice(0)
         if not handle or handle == -1:
             print("[ERROR] USB device open failed.")
@@ -86,11 +102,9 @@ class MotorController:
         return int(abs(angle) / 360.0 * steps_per_rev)
 
     def motor_initialize(self) -> bool:
-        """
-        发送初始化包，获取初始步数。
-        [FIX] 移除 _is_initialized 检查，此函数必须每次都执行 Write/Read
-        以清空缓冲区，为下一次 Write(Move) 做准备。
-        """
+        """发送初始化包，获取初始步数。"""
+        if not IS_WINDOWS:
+            return True
         # if self._is_initialized:  <-- 删除这一行
         #     return True           <-- 删除这一行
 
@@ -131,6 +145,9 @@ class MotorController:
 
     def motor_start(self, angle: float) -> bool:
         """启动电机运动指定角度"""
+        if not IS_WINDOWS:
+            return True
+
         if math.isclose(angle, 0.0, abs_tol=1e-5):
             return True
 
@@ -179,6 +196,8 @@ class MotorController:
 
     def motor_stop(self) -> bool:
         """停止所有电机"""
+        if not IS_WINDOWS:
+            return True
         packet = (c_ubyte * self.CONTROL_PACKET_SIZE)(0)
         STOP_BYTE = 0xBE  # 10111110
 
@@ -201,6 +220,8 @@ class MotorController:
 
     def motor_reset(self) -> bool:
         """回到原点（反向走累计角度）"""
+        if not IS_WINDOWS:
+            return True
         if math.isclose(self._total_angle, 0.0, abs_tol=1e-5):
             print("[INFO] Already at origin. No reset needed.")
             return True
@@ -215,6 +236,8 @@ class MotorController:
 
     def motor_get_current_angle(self) -> float:
         """读取当前角度（相对初始位置）"""
+        if not IS_WINDOWS:
+            return self._total_angle
         if not self._is_initialized:
             print("[WARN] Not initialized. Returning cumulative angle.")
             return self._total_angle

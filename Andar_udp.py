@@ -250,14 +250,20 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.MUSIC2dSpectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum2d_keys}
 
     def setup_distance_table(self):
-        self.tableWidget_distance.setColumnCount(10)
-        header_labels = ['index','Angel','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
+        self.tableWidget_distance.setColumnCount(9)
+        header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
                          'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
         self.tableWidget_distance.setEditTriggers(QTableWidget.NoEditTriggers)
-        # QHeaderView.Stretch 模式会使所有列等宽拉伸，填充可用空间。
         self.tableWidget_distance.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget_distance.verticalHeader().setVisible(False)
+
+        self.tableWidget_point.setColumnCount(5)
+        point_header_labels = ['index','distance', 'angle', 'x', 'y']
+        self.tableWidget_point.setHorizontalHeaderLabels(point_header_labels)
+        self.tableWidget_point.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tableWidget_point.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.tableWidget_point.verticalHeader().setVisible(False)
 
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
@@ -519,7 +525,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
 
-            # sample = sample // 2
             # iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
@@ -555,26 +560,36 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             else:
                 pass
 
-            # az, el, idx, info = estimate_az_el_from_fft2d(self.fft_results_2D)
-            # print(f"估计角度：Azimuth={az:.2f}°, Elevation={el:.2f}°")
-
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
             self.AZangelList.append(peak_az)
             self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
             self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-            self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
+            if self.checkBox_channel_calibration.isChecked():
+                point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
+            else:
+                point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
 
-            # 更新表格显示距离、角度计算结果
-            row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                        f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
-                        f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
+            # 更新表格显示距离计算结果
+            row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+                                f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                                f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
             row_count = self.tableWidget_distance.rowCount()
             self.tableWidget_distance.insertRow(row_count)
-            for i, value in enumerate(row_data):
+            for i, value in enumerate(row_data_distance):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
                 self.tableWidget_distance.setItem(row_count, i, item)
             self.tableWidget_distance.scrollToBottom()# 滚动到底部
+
+            #更新表格显示角度及点云计算结果
+            row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{point_dict['theta_deg']:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
+            row_count = self.tableWidget_point.rowCount()
+            self.tableWidget_point.insertRow(row_count)
+            for i, value in enumerate(row_data_point):
+                item = QTableWidgetItem(value)
+                item.setTextAlignment(Qt.AlignCenter)
+                self.tableWidget_point.setItem(row_count, i, item)
+            self.tableWidget_point.scrollToBottom()
             self.current_index += 1
 
         except Exception as e:
@@ -1141,21 +1156,30 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
         if self.checkBox_channel_calibration.isChecked():
-            self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
+            point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
         else:
-            self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
-        # 更新表格显示距离、角度计算结果
-        row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                    f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
-                    f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
-
+            point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
+        # 更新表格显示距离计算结果
+        row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
+                            f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                            f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
         row_count = self.tableWidget_distance.rowCount()
         self.tableWidget_distance.insertRow(row_count)
-        for i, value in enumerate(row_data):
+        for i, value in enumerate(row_data_distance):
             item = QTableWidgetItem(value)
             item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
             self.tableWidget_distance.setItem(row_count, i, item)
         self.tableWidget_distance.scrollToBottom()# 滚动到底部
+
+        #更新表格显示角度及点云计算结果
+        row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{point_dict['theta_deg']:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
+        row_count = self.tableWidget_point.rowCount()
+        self.tableWidget_point.insertRow(row_count)
+        for i, value in enumerate(row_data_point):
+            item = QTableWidgetItem(value)
+            item.setTextAlignment(Qt.AlignCenter)
+            self.tableWidget_point.setItem(row_count, i, item)
+        self.tableWidget_point.scrollToBottom()
 
     def ShowNextFrame(self):
         """

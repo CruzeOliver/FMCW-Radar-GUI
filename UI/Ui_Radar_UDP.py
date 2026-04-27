@@ -72,6 +72,16 @@ class Ui_MainWindow(object):
         self.horizontalLayout_2.addWidget(self.tableWidget_distance)
 
         self.tabWidget_Message.addTab(self.tab_Distance, "")
+        self.tab_XYZpoint = QWidget()
+        self.tab_XYZpoint.setObjectName(u"tab_XYZpoint")
+        self.horizontalLayout_19 = QHBoxLayout(self.tab_XYZpoint)
+        self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
+        self.tableWidget_point = QTableWidget(self.tab_XYZpoint)
+        self.tableWidget_point.setObjectName(u"tableWidget_point")
+
+        self.horizontalLayout_19.addWidget(self.tableWidget_point)
+
+        self.tabWidget_Message.addTab(self.tab_XYZpoint, "")
 
         self.gridLayout.addWidget(self.tabWidget_Message, 2, 0, 1, 1)
 
@@ -619,13 +629,13 @@ class Ui_MainWindow(object):
         self.gridLayout.addWidget(self.widget_extra, 2, 2, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
+        self.tabWidget_Message.raise_()
         self.tabWidget_Display.raise_()
         self.line_3.raise_()
         self.line.raise_()
         self.line_4.raise_()
         self.line_2.raise_()
         self.groupBox_Config.raise_()
-        self.tabWidget_Message.raise_()
         self.widget_extra.raise_()
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
@@ -650,7 +660,7 @@ class Ui_MainWindow(object):
         self.pushButton_2.clicked.connect(MainWindow.circleTest)
 
         self.tabWidget_Message.setCurrentIndex(0)
-        self.tabWidget_Display.setCurrentIndex(1)
+        self.tabWidget_Display.setCurrentIndex(10)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -659,7 +669,8 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
         self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_log), QCoreApplication.translate("MainWindow", u"LogMessage", None))
-        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance / Angel", None))
+        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance ", None))
+        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_XYZpoint), QCoreApplication.translate("MainWindow", u"Point / Angle", None))
         self.groupBox_Config.setTitle(QCoreApplication.translate("MainWindow", u"Setting", None))
         self.groupBox_UDP.setTitle(QCoreApplication.translate("MainWindow", u"UDP", None))
         self.pushButton_Connect.setText(QCoreApplication.translate("MainWindow", u"UDP Connect", None))

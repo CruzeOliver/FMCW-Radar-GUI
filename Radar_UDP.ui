@@ -61,11 +61,21 @@
       </widget>
       <widget class="QWidget" name="tab_Distance">
        <attribute name="title">
-        <string>Distance / Angel</string>
+        <string>Distance </string>
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
          <widget class="QTableWidget" name="tableWidget_distance"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_XYZpoint">
+       <attribute name="title">
+        <string>Point / Angle</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_19">
+        <item>
+         <widget class="QTableWidget" name="tableWidget_point"/>
         </item>
        </layout>
       </widget>
@@ -575,7 +585,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>10</number>
       </property>
       <widget class="QWidget" name="tab_Placeholder">
        <attribute name="title">
@@ -783,13 +793,13 @@
      <widget class="QWidget" name="widget_extra" native="true"/>
     </item>
    </layout>
+   <zorder>tabWidget_Message</zorder>
    <zorder>tabWidget_Display</zorder>
    <zorder>line_3</zorder>
    <zorder>line</zorder>
    <zorder>line_4</zorder>
    <zorder>line_2</zorder>
    <zorder>groupBox_Config</zorder>
-   <zorder>tabWidget_Message</zorder>
    <zorder>widget_extra</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">

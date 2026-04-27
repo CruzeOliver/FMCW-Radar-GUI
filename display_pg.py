@@ -898,17 +898,21 @@ class PgDisplay:
                 h['peak_scatter'].setData([peak_az], [peak_el])
 
     def update_point_cloud_polar(self, key: str,
-                                 r: float, # 现在接受标量 float
-                                 theta_deg: float, # 现在接受标量 float
-                                 *,
-                                 size: float = 5.0,
-                                 color='r'):
+                             r: float,  # 现在接受标量 float
+                             theta_deg: float,  # 现在接受标量 float
+                             *,
+                             size: float = 5.0,
+                             color='r'):
         """
         r-θ(度) -> 半圆散点
         每次传入一个标量，内部暂存，当数量达到5个时再统一绘制
+        永远返回字典，不会返回 None
         """
+        # 默认返回空数据字典（防止 None）
+        default_dict = {'x': 0.0, 'y': 0.0, 'r': 0.0, 'theta_deg': 0.0}
+
         if key not in self.pg_cloud_dict:
-            return
+            return default_dict  # 不再返回 None
 
         h = self.pg_cloud_dict[key]
 
@@ -916,9 +920,9 @@ class PgDisplay:
         self._r_buffer.append(r)
         self._theta_buffer.append(theta_deg)
 
-        # 2. 如果 deque 未满（即元素少于5个），则直接返回，不进行绘制
+        # 2. 如果 deque 未满（即元素少于5个），返回默认值
         if len(self._r_buffer) < 5:
-            return
+            return default_dict
 
         # 3. 如果 deque 已满，则将所有元素转换为 NumPy 数组进行绘制
         r_array = np.array(self._r_buffer)
@@ -926,11 +930,11 @@ class PgDisplay:
 
         theta_rad = np.deg2rad(theta_deg_array)
         mask = (r_array >= 0) & (r_array <= self._r_max) & \
-               (theta_rad >= h['theta_min']) & (theta_rad <= h['theta_max'])
+            (theta_rad >= h['theta_min']) & (theta_rad <= h['theta_max'])
 
         if not np.any(mask):
-            h['scatter'].setData([])# deque 会自动管理大小，无需手动清空
-            return
+            h['scatter'].setData([])
+            return default_dict  # 无有效点也返回默认值
 
         rv = r_array[mask]
         tv = theta_rad[mask]
@@ -939,6 +943,12 @@ class PgDisplay:
 
         # 4. 用所有缓存的数据点进行绘制
         h['scatter'].setData(x=x, y=y, size=size, brush=color, pen=None)
+
+        # 最后返回最后一个点的数据
+        return {'x': x[-1] if len(x) > 0 else 0.0,
+                'y': y[-1] if len(y) > 0 else 0.0,
+                'r': r,
+                'theta_deg': theta_deg}
 
 
     # -------------------- Private: Init Helpers --------------------

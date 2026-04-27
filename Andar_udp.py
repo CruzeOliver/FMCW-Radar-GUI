@@ -4,6 +4,7 @@ from PySide6.QtCore import QThread,QObject, Signal, Qt, QtMsgType, qInstallMessa
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
 from scipy.io import loadmat
+import scipy.linalg
 import numpy as np
 import collections
 import warnings
@@ -15,9 +16,7 @@ from data_processing import *
 import motorController
 from udp_handler import *
 from display_pg import PgDisplay
-from ILSCalibration import *
 from WLS_Calibration import *
-from forTest import *
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
 PEER_IP = "192.168.1.55"     # 雷达设备IP
@@ -29,7 +28,6 @@ class Bus(QObject):
     log         = Signal(str)     # log日志重定向
 
 class MotorTestWorker(QThread):
-    # 【关键修改】PySide6 使用 Signal 而不是 pyqtSignal
     log_signal = Signal(str)     # 用于发日志给UI
     finished_signal = Signal()   # 用于通知任务结束
 
@@ -60,7 +58,6 @@ class MotorTestWorker(QThread):
                 return
 
             # 2. 调用电机移动 (调用主窗口对象的方法)
-            # 假设 motor_start 只是发送USB指令，不涉及大量GUI操作，直接调用通常没问题
             try:
                 success = self.main_ref.CH375motor.motor_start(stepAngel)
             except Exception as e:
@@ -72,7 +69,6 @@ class MotorTestWorker(QThread):
                 time.sleep(delayTime)  # 等待电机稳定
 
                 # --- 安全访问主线程的数据 ---
-                # 因为 AZangelList 可能正在被其他地方修改，加个异常处理更稳妥
                 try:
                     if self.main_ref.AZangelList:
                         TestAngle = self.main_ref.AZangelList[-1]
@@ -1133,12 +1129,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 如果不校准，则直接使用原始iq数据
             calibrated_iq = iq
 
-        if not self.checkBox_channel_calibration.isChecked() and self.v_calibration is not None:
-            # 如果只应用ILS校准
-            ILS_calibration = self.v_calibration.reshape((4, 1, 1))
-            self.fft_results_2D = self.fft_results_2D * ILS_calibration
-
-        #analyze_peak_info2(calibrated_iq)
+        #此时的calibrated_iq已经经过了校准（如果选中了校准），如果没有校准，则还是原始iq数据，后续显示和距离计算都使用这个数据
         self.display.update_adc4(calibrated_iq, chirp, sample)
         self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
         self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)
@@ -1149,7 +1140,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-        self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
+        if self.checkBox_channel_calibration.isChecked():
+            self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
+        else:
+            self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
         # 更新表格显示距离、角度计算结果
         row_data = [f"{self.current_index}",f"{peak_az:.2f}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                     f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",

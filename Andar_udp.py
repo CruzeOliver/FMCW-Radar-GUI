@@ -1,5 +1,5 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
-from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox,  QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
 from PySide6.QtCore import QThread,QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
@@ -681,9 +681,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             raise ValueError("zij_vector 必须是包含4个元素的向量。")
         if z_ij_spectrum_frame.shape[0] != 4:
             raise ValueError("z_ij_spectrum_frame 的第一维必须为 4。")
-
         n_ant = 4  # 4个虚拟通道
-
         # ================================
         # 阶段一：雷达预热 (保持不变)
         # ================================
@@ -691,7 +689,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 统一强制转换，保证后续 shape 一致
             zij_vector = np.asarray(zij_vector).reshape(4,)
             z_ij_spectrum_frame = np.asarray(z_ij_spectrum_frame)
-
             self.calibration_list_WLS.append((zij_vector, z_ij_spectrum_frame))
             self.warmup_count += 1
 
@@ -701,20 +698,16 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.calibration_list_WLS.clear()
                 print("预热完成，将开始收集数据。")
             return
-
         # ================================
         # 阶段二：正式校准与数据过滤 (保持不变)
         # ================================
         if len(self.calibration_list_WLS) < 50:
             current_amplitudes = np.abs(zij_vector)
             is_valid = np.all(current_amplitudes <= 2 * self.warmup_avg)
-
             if is_valid:
                 self.calibration_list_WLS.append((np.asarray(zij_vector).reshape(4,),
                                             np.asarray(z_ij_spectrum_frame)))
-
         current_count = len(self.calibration_list_WLS)
-
         # ================================
         # 阶段三：WLS 计算（核心加入防御）
         # ================================
@@ -723,36 +716,29 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             valid_zij_list = []
             valid_spectrum_list = []
             bad_indices = []
-
             # ---- 防御性检查：确保每帧 shape/type 完整一致 ----
             for idx, item in enumerate(self.calibration_list_WLS):
                 if not (isinstance(item, (tuple, list)) and len(item) >= 2):
                     bad_indices.append((idx, "not tuple/list or len<2"))
                     continue
-
                 vec, spec = item
-
                 # vec：必须能转成 ndarray 并 reshape 成 (4,)
                 try:
                     vec = np.asarray(vec).reshape(4,)
                 except Exception:
                     bad_indices.append((idx, f"vec shape invalid: {np.asarray(vec).shape}"))
                     continue
-
                 # spec：必须能转成 ndarray，且第一维为 4
                 try:
                     spec = np.asarray(spec)
                 except Exception:
                     bad_indices.append((idx, f"spectrum convert failed"))
                     continue
-
                 if spec.ndim < 2 or spec.shape[0] != 4:
                     bad_indices.append((idx, f"spectrum shape={spec.shape}"))
                     continue
-
                 valid_zij_list.append(vec)
                 valid_spectrum_list.append(spec)
-
             # ---- 输出被跳过帧的信息（用于调试） ----
             if bad_indices:
                 print(f"[WLS] 跳过 {len(bad_indices)} 个非法帧，示例：{bad_indices[:5]}")
@@ -760,37 +746,27 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             if len(valid_zij_list) == 0:
                 QMessageBox.warning(self, "校准失败", "无有效帧可用于校准（所有帧不合格）。")
                 return
-
             # ---- 拼接为 ndarray（保证不会再报 ValueError） ----
             zij_vectors_to_calibrate = np.stack(valid_zij_list, axis=0)       # (N_valid, 4)
             spectrums_to_calibrate   = np.stack(valid_spectrum_list, axis=0) # (N_valid, 4, N_Doppler, N_Range)
-
             current_count = zij_vectors_to_calibrate.shape[0]  # 更新有效数量
-
             # ================================
             #  后续保持不变：计算平均、噪声、权重、WLS
             # ================================
             zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0)
-
             noise_power_matrix_frames = np.zeros((current_count, n_ant))
-
             for frame_idx in range(current_count):
                 for channel_idx in range(n_ant):
                     noise_power = estimate_noise_power_from_frame(
                         spectrums_to_calibrate[frame_idx, channel_idx], peak_idx
                     )
                     noise_power_matrix_frames[frame_idx, channel_idx] = noise_power
-
             avg_noise_power_per_channel = np.mean(noise_power_matrix_frames, axis=0)
-
             weights = calculate_weights(zij_vector_avg, avg_noise_power_per_channel, n_obs=current_count)
-
             alpha_matrix = amplitude_calibration_wals(zij_vector_avg, weights)
             phi_matrix = phase_calibration_wls(zij_vector_avg, weights)
-
             filename = f"{self.generate_unique_time()} calibration_matrix_WLS"
             np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
-
             # ----- 清理环境 -----
             self.calibration_list_WLS.clear()
             self.warmup_count = 0
@@ -818,13 +794,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             if iq_virtual_data.ndim != 3 or iq_virtual_data.shape[0] != 4:
                 print(f"错误: 输入IQ数据维度必须是 (4, N_obs, N_samples), 实际为 {iq_virtual_data.shape}")
                 return
-
             K_TX, L_RX = 2, 2
             M_virtual, N_obs, N_samples = iq_virtual_data.shape
-
             # (A) 执行 FFT
             range_fft_results = np.fft.fft(iq_virtual_data, axis=2)
-
             # (B) 自动查找峰值 Bin (仅在第一次运行时执行一次)
             if calib_peak_bin is None:
                 # 仅在第一次运行时查找和锁定峰值
@@ -832,18 +805,14 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 avg_range_profile = np.mean(fft_magnitude, axis=(0, 1))
                 avg_range_profile[0] = 0 # 忽略直流
                 calib_peak_bin = int(np.argmax(avg_range_profile))
-
             # (C) 提取复数增益向量 (使用锁定的 Bin)
             peak_complex_values = range_fft_results[:, :, calib_peak_bin]
             zij_vector = np.mean(peak_complex_values, axis=1) # (4,) 向量
-
         except Exception as e:
             print(f"错误: 处理IQ数据失败: {e}")
             return
         # --- 阶段 0 完毕，zij_vector (4,) 已生成 ---
-
         self.warmup_count += 1 # 充当总帧数计数器
-
         # --- 阶段一：雷达预热 (忽略前 20 帧) ---
         if self.warmup_count <= 20:
             #print(f"预热中... 丢弃第 {self.warmup_count}/20 帧")
@@ -855,7 +824,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if len(self.calibration_list_FFTpeak) < 50:
             self.calibration_list_FFTpeak.append(zij_vector)
             #print(f"收集中... {len(self.calibration_list_FFTpeak)}/50 帧 (总帧数: {self.warmup_count})")
-
             # 检查是否刚收集满50帧
             if len(self.calibration_list_FFTpeak) < 50:
                 return # 还未满50帧，返回
@@ -1214,36 +1182,49 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def SaveTable(self):
         """
-        将表格中的数据保存到CSV文件。
+        将表格中的数据保存到CSV文件，支持表格二选一。
         """
-        # 弹出文件对话框让用户选择保存路径和文件名
-        filename, _ = QFileDialog.getSaveFileName(self, "保存数据", "", "CSV Files (*.csv)")
-        if filename:
+        tables = []
+        if hasattr(self, 'tableWidget_point'):
+            tables.append(("点云表格", self.tableWidget_point))
+        if hasattr(self, 'tableWidget_distance'):
+            tables.append(("距离表格", self.tableWidget_distance))
+
+        if not tables:
+            QMessageBox.warning(self, "警告", "没有可保存的表格")
+            return
+
+        selected = []
+        if len(tables) == 1:
+            selected = [0]
+        else:
+            items = [name for name, _ in tables]
+            item, ok = QInputDialog.getItem(self, "Table Save", "请选择要保存的表格：", items, 0, False)
+            if not ok:
+                return
+            selected = [items.index(item)]
+
+        for idx in selected:
+            name, table = tables[idx]
+            filename, _ = QFileDialog.getSaveFileName(self, f"保存{name}", "", "CSV Files (*.csv)")
+            if not filename:
+                continue
             try:
                 with open(filename, 'w', newline='', encoding='utf-8') as file:
                     writer = csv.writer(file)
-
-                    # 获取表头并写入
                     header_labels = []
-                    for col in range(self.tableWidget_distance.columnCount()):
-                        header_labels.append(self.tableWidget_distance.horizontalHeaderItem(col).text())
+                    for col in range(table.columnCount()):
+                        header_labels.append(table.horizontalHeaderItem(col).text())
                     writer.writerow(header_labels)
-
-                    # 遍历所有行和列，写入数据
-                    for row in range(self.tableWidget_distance.rowCount()):
+                    for row in range(table.rowCount()):
                         row_data = []
-                        for col in range(self.tableWidget_distance.columnCount()):
-                            item = self.tableWidget_distance.item(row, col)
-                            if item is not None:
-                                row_data.append(item.text())
-                            else:
-                                row_data.append("") # 如果单元格为空，则写入空字符串
+                        for col in range(table.columnCount()):
+                            item = table.item(row, col)
+                            row_data.append(item.text() if item is not None else "")
                         writer.writerow(row_data)
-
-                QMessageBox.information(self, "保存成功", f"数据已成功保存到\n{filename}")
-
+                QMessageBox.information(self, "保存成功", f"{name}已成功保存到\n{filename}")
             except Exception as e:
-                QMessageBox.critical(self, "保存失败", f"保存文件时出错：\n{e}")
+                QMessageBox.critical(self, "保存失败", f"保存{name}时出错：\n{e}")
 
 # ================== 电机控制相关内容 ==================
 

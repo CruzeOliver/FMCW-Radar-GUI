@@ -473,6 +473,32 @@ def _coarse_peak_fft(x_td, fs):
 
     return kmax, f_fft_peak, f_macleod
 
+def _rife_refinement(x_td, fs):
+    """Rife 算法频率修正"""
+    n = x_td.size
+    X = np.fft.fft(x_td)
+    mag = np.abs(X[:n // 2])
+    kmax = np.argmax(mag)
+
+    # 寻找能量较大的邻近 bin 以确定修正方向
+    if kmax == 0:
+        r = 1
+    elif kmax == (n // 2 - 1):
+        r = -1
+    else:
+        if mag[kmax + 1] > mag[kmax - 1]:
+            r = 1
+        else:
+            r = -1
+
+    val_max = mag[kmax]
+    val_adj = mag[kmax + r]
+
+    # Rife 修正公式
+    delta = r * (val_adj / (val_max + val_adj))
+    f_rife = (kmax + delta) * fs / n
+    return f_rife, delta
+
 
 def calculate_distance_from_iq(
     iq,                     # ndarray, shape (n_ant, n_chirp, n_sample)
@@ -518,6 +544,9 @@ def calculate_distance_from_iq(
     # ---- 粗定位 + Macleod 细化（得到 f_fft_peak, f_macleod）----
     kmax, f_fft_peak, f_macleod = _coarse_peak_fft(x_td, fs)
 
+    #  Rife 算法 (新增)
+    f_rife, delta_rife = _rife_refinement(x_td, fs)
+
     # ---- CZT参数（带宽 B 统一，以便公平对比）----
     B = float(r_bins) * fs / n_sample
 
@@ -546,6 +575,7 @@ def calculate_distance_from_iq(
     R_fft_macleod = fb2R(f_macleod)      # 算法2
     R_czt_only    = fb2R(f_czt_only)     # 算法3
     R_combo       = fb2R(f_combo)        # 算法4
+    R_rife        = fb2R(f_rife)         # Rife算法（新增）
 
     diag = {
         "antenna_used": int(antenna_index),
@@ -561,6 +591,7 @@ def calculate_distance_from_iq(
         "kmax": int(kmax),
         "f_fft_peak_Hz": float(f_fft_peak),
         "f_macleod_Hz": float(f_macleod),
+        "f_rife_Hz": float(f_rife),               # Rife算法（新增）
         # CZT-only（算法3）
         "f_start_czt_only_Hz": float(f_start_czt_only),
         "df_czt_only_Hz": float(df1),
@@ -577,7 +608,7 @@ def calculate_distance_from_iq(
         "sample_slice": sample_slice if sample_slice else "full"
     }
 
-    return R_fft, R_fft_macleod, R_czt_only, R_combo, diag
+    return R_fft, R_fft_macleod, R_rife, R_czt_only, R_combo, diag
 
 ###==================== 2D FFT 角度估计 ===================
 

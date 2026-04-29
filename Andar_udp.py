@@ -250,9 +250,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.MUSIC2dSpectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum2d_keys}
 
     def setup_distance_table(self):
-        self.tableWidget_distance.setColumnCount(9)
+        self.tableWidget_distance.setColumnCount(11)
         header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
-                         'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
+                          'Rife', 'Rife-fre', 'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
         self.tableWidget_distance.setHorizontalHeaderLabels(header_labels)
         self.tableWidget_distance.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tableWidget_distance.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -529,7 +529,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.fft_results_1D = Perform1D_FFT(iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
             self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
-            R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
+            R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
             self.display.update_frequency(iq,diag)
 
             if self.checkBox_CalibrationMode.isChecked():
@@ -571,7 +571,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 更新表格显示距离计算结果
             row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                                f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                                f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",
+                                f"{R_Rife:.4f}",f"{diag['f_rife_Hz']:.4f}",
+                                f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                                 f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
             row_count = self.tableWidget_distance.rowCount()
             self.tableWidget_distance.insertRow(row_count)
@@ -1085,7 +1087,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             iq = align_iq_virtual(iq)
 
         #距离计算函数，CZT采用时域变换
-        R_fft, R_macleod, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
+        R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod, diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
@@ -1129,7 +1131,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
         # 更新表格显示距离计算结果
         row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                            f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
+                            f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",
+                            f"{R_Rife:.4f}",f"{diag['f_rife_Hz']:.4f}",
+                            f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
                             f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
         row_count = self.tableWidget_distance.rowCount()
         self.tableWidget_distance.insertRow(row_count)

@@ -1087,7 +1087,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             iq = align_iq_virtual(iq)
 
         #距离计算函数，CZT采用时域变换
-        R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod, diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
+        R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod, diag = calculate_distance_from_iq(iq,r_bins=1,M=64,use_window=None,coherent=True)
         self.display.update_frequency(iq,diag)
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
@@ -1126,7 +1126,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
         if self.checkBox_channel_calibration.isChecked():
-            point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
+            point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
         else:
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
         # 更新表格显示距离计算结果
@@ -1144,7 +1144,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_distance.scrollToBottom()# 滚动到底部
 
         #更新表格显示角度及点云计算结果
-        row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{point_dict['theta_deg']:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
+        row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{peak_az:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
         row_count = self.tableWidget_point.rowCount()
         self.tableWidget_point.insertRow(row_count)
         for i, value in enumerate(row_data_point):

@@ -41,8 +41,8 @@ class PgDisplay:
         """
         pg.setConfigOptions(antialias=True)
         #maxlen=5 # 表示队列最大容量为5。当加入第6个元素时，最旧的元素会自动被移除。
-        self._r_buffer = deque(maxlen = 5)
-        self._theta_buffer = deque(maxlen = 5)
+        self._r_buffer = deque()
+        self._theta_buffer = deque()
 
         self.pg_plot_dict: Dict[str, Dict[str, Any]] = {}  # ADC & 1DFFT 曲线
         self.pg_img_dict: Dict[str, ImageView] = {}        # 2DFFT 图像
@@ -898,33 +898,29 @@ class PgDisplay:
                 h['peak_scatter'].setData([peak_az], [peak_el])
 
     def update_point_cloud_polar(self, key: str,
-                             r: float,  # 现在接受标量 float
-                             theta_deg: float,  # 现在接受标量 float
+                             r: float,  
+                             theta_deg: float,
                              *,
                              size: float = 5.0,
                              color='r'):
         """
         r-θ(度) -> 半圆散点
-        每次传入一个标量，内部暂存，当数量达到5个时再统一绘制
+        每次传入一个标量，内部暂存，累积到maxlen个时统一绘制
         永远返回字典，不会返回 None
         """
-        # 默认返回空数据字典（防止 None）
         default_dict = {'x': 0.0, 'y': 0.0, 'r': 0.0, 'theta_deg': 0.0}
 
         if key not in self.pg_cloud_dict:
-            return default_dict  # 不再返回 None
+            return default_dict
 
         h = self.pg_cloud_dict[key]
 
-        # 1. 将新传入的标量数据添加到 deque
         self._r_buffer.append(r)
         self._theta_buffer.append(theta_deg)
 
-        # 2. 如果 deque 未满（即元素少于5个），返回默认值
-        if len(self._r_buffer) < 5:
+        if len(self._r_buffer) < 1:
             return default_dict
 
-        # 3. 如果 deque 已满，则将所有元素转换为 NumPy 数组进行绘制
         r_array = np.array(self._r_buffer)
         theta_deg_array = np.array(self._theta_buffer)
 

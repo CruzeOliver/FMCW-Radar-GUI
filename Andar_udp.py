@@ -1175,8 +1175,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.frame_data_list = []  # 清空数据
         self.current_index = 0  # 重置索引
         self.textEdit_log.clear()  # 清空日志
-        self.tableWidget_distance.clearContents()  # 清空表格内容
+        self.tableWidget_distance.clearContents()  # 清空距离表格内容
         self.tableWidget_distance.setRowCount(0)
+        self.tableWidget_point.clearContents()  # 清空点云表格内容
+        self.tableWidget_point.setRowCount(0)
         self.lineEdit_ModeName.clear()
         self.alpha_matrix = None
         self.phi_matrix = None

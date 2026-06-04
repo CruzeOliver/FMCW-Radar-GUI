@@ -44,6 +44,8 @@ class PgDisplay:
         #maxlen=5 # 表示队列最大容量为5。当加入第6个元素时，最旧的元素会自动被移除。
         self._r_buffer = deque()
         self._theta_buffer = deque()
+        self._r_buffer_5 = deque(maxlen=5)
+        self._theta_buffer_5 = deque(maxlen=5)
 
         self.pg_plot_dict: Dict[str, Dict[str, Any]] = {}  # ADC & 1DFFT 曲线
         self.pg_img_dict: Dict[str, ImageView] = {}        # 2DFFT 图像
@@ -903,11 +905,16 @@ class PgDisplay:
                              theta_deg: float,
                              *,
                              size: float = 5.0,
-                             color='r'):
+                             color='r',
+                             show_all: bool = True):
         """
         r-θ(度) -> 半圆散点
-        每次传入一个标量，内部暂存，累积到maxlen个时统一绘制
-        永远返回字典，不会返回 None
+        每次传入一个标量，内部暂存，累积后统一绘制。
+        永远返回字典，不会返回 None。
+
+        参数:
+            show_all=True  → 显示所有历史点云（默认，兼容旧行为）
+            show_all=False → 仅显示最近 5 个点（滑动窗口）
         """
         default_dict = {'x': 0.0, 'y': 0.0, 'r': 0.0, 'theta_deg': 0.0}
 
@@ -916,14 +923,20 @@ class PgDisplay:
 
         h = self.pg_cloud_dict[key]
 
-        self._r_buffer.append(r)
-        self._theta_buffer.append(theta_deg)
+        # 根据模式选择缓冲区
+        if show_all:
+            r_buf, th_buf = self._r_buffer, self._theta_buffer
+        else:
+            r_buf, th_buf = self._r_buffer_5, self._theta_buffer_5
 
-        if len(self._r_buffer) < 1:
+        r_buf.append(r)
+        th_buf.append(theta_deg)
+
+        if len(r_buf) < 1:
             return default_dict
 
-        r_array = np.array(self._r_buffer)
-        theta_deg_array = np.array(self._theta_buffer)
+        r_array = np.array(r_buf)
+        theta_deg_array = np.array(th_buf)
 
         theta_rad = np.deg2rad(theta_deg_array)
         mask = (r_array >= 0) & (r_array <= self._r_max) & \
@@ -1408,6 +1421,8 @@ class PgDisplay:
         # 重置点云数据及缓冲区
         self._r_buffer.clear()
         self._theta_buffer.clear()
+        self._r_buffer_5.clear()
+        self._theta_buffer_5.clear()
         for h in self.pg_cloud_dict.values():
             h['scatter'].setData([], [])
 

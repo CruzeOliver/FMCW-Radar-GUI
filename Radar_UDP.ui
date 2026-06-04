@@ -103,22 +103,44 @@
        <item>
         <widget class="QGroupBox" name="groupBox_UDP">
          <property name="title">
-          <string>UDP</string>
+          <string>DataString</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
-           <widget class="QPushButton" name="pushButton_Connect">
-            <property name="text">
-             <string>UDP Connect</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QPushButton" name="pushButton_Connect">
+              <property name="text">
+               <string>Connect</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_Disconnect">
+              <property name="text">
+               <string>Disconnect</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_Disconnect">
-            <property name="text">
-             <string>UDP Disconnect</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_14">
+            <item>
+             <widget class="QPushButton" name="pushButton_Video_open">
+              <property name="text">
+               <string>Video Open</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton_video_close">
+              <property name="text">
+               <string>Video Close</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_5">
@@ -467,6 +489,17 @@
             </item>
            </layout>
           </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_7">
+            <item>
+             <widget class="QProgressBar" name="progressBar_file">
+              <property name="value">
+               <number>0</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>
@@ -585,7 +618,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>10</number>
+       <number>11</number>
       </property>
       <widget class="QWidget" name="tab_Placeholder">
        <attribute name="title">
@@ -774,9 +807,19 @@
        <attribute name="title">
         <string>Point Cloud</string>
        </attribute>
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <layout class="QVBoxLayout" name="verticalLayout_6">
         <item>
          <widget class="QWidget" name="widget_PointCloud" native="true"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_Video">
+       <attribute name="title">
+        <string>Video</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_8">
+        <item>
+         <widget class="QWidget" name="widget_video" native="true"/>
         </item>
        </layout>
       </widget>
@@ -823,28 +866,12 @@
    <slot>UDP_connect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>992</x>
-     <y>101</y>
+     <x>907</x>
+     <y>102</y>
     </hint>
     <hint type="destinationlabel">
      <x>927</x>
      <y>215</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton_Disconnect</sender>
-   <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>UDP_disconnect()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>992</x>
-     <y>130</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>928</x>
-     <y>337</y>
     </hint>
    </hints>
   </connection>
@@ -856,7 +883,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>991</x>
-     <y>387</y>
+     <y>419</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -872,7 +899,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>991</x>
-     <y>418</y>
+     <y>450</y>
     </hint>
     <hint type="destinationlabel">
      <x>805</x>
@@ -887,8 +914,8 @@
    <slot>CloseFile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>910</x>
-     <y>449</y>
+     <x>907</x>
+     <y>481</y>
     </hint>
     <hint type="destinationlabel">
      <x>806</x>
@@ -904,7 +931,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>991</x>
-     <y>449</y>
+     <y>481</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -919,8 +946,8 @@
    <slot>LoadCalibratioMode()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>910</x>
-     <y>313</y>
+     <x>907</x>
+     <y>317</y>
     </hint>
     <hint type="destinationlabel">
      <x>865</x>
@@ -935,8 +962,8 @@
    <slot>MotorConnect()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>910</x>
-     <y>514</y>
+     <x>907</x>
+     <y>576</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -952,7 +979,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>991</x>
-     <y>514</y>
+     <y>576</y>
     </hint>
     <hint type="destinationlabel">
      <x>972</x>
@@ -968,7 +995,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>991</x>
-     <y>574</y>
+     <y>636</y>
     </hint>
     <hint type="destinationlabel">
      <x>954</x>
@@ -983,8 +1010,8 @@
    <slot>PlayMatfile()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>910</x>
-     <y>418</y>
+     <x>907</x>
+     <y>450</y>
     </hint>
     <hint type="destinationlabel">
      <x>814</x>
@@ -999,12 +1026,60 @@
    <slot>circleTest()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>886</x>
-     <y>541</y>
+     <x>992</x>
+     <y>606</y>
     </hint>
     <hint type="destinationlabel">
      <x>814</x>
      <y>574</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_Disconnect</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>UDP_disconnect()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>991</x>
+     <y>102</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>928</x>
+     <y>337</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_Video_open</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>VideoOpen()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>868</x>
+     <y>119</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>798</x>
+     <y>70</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_video_close</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>VideoClose()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>953</x>
+     <y>118</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1016</x>
+     <y>115</y>
     </hint>
    </hints>
   </connection>
@@ -1023,5 +1098,7 @@
   <slot>PlayMatfile()</slot>
   <slot>ILSCalibration()</slot>
   <slot>circleTest()</slot>
+  <slot>VideoOpen()</slot>
+  <slot>VideoClose()</slot>
  </slots>
 </ui>

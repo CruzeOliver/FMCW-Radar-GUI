@@ -17,10 +17,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QLineEdit,
-    QMainWindow, QMenuBar, QPushButton, QRadioButton,
-    QSizePolicy, QSpacerItem, QStatusBar, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
-    QWidget)
+    QMainWindow, QMenuBar, QProgressBar, QPushButton,
+    QRadioButton, QSizePolicy, QSpacerItem, QStatusBar,
+    QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit,
+    QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -99,15 +99,35 @@ class Ui_MainWindow(object):
         self.groupBox_UDP.setObjectName(u"groupBox_UDP")
         self.verticalLayout_2 = QVBoxLayout(self.groupBox_UDP)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.horizontalLayout_3 = QHBoxLayout()
+        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
         self.pushButton_Connect = QPushButton(self.groupBox_UDP)
         self.pushButton_Connect.setObjectName(u"pushButton_Connect")
 
-        self.verticalLayout_2.addWidget(self.pushButton_Connect)
+        self.horizontalLayout_3.addWidget(self.pushButton_Connect)
 
         self.pushButton_Disconnect = QPushButton(self.groupBox_UDP)
         self.pushButton_Disconnect.setObjectName(u"pushButton_Disconnect")
 
-        self.verticalLayout_2.addWidget(self.pushButton_Disconnect)
+        self.horizontalLayout_3.addWidget(self.pushButton_Disconnect)
+
+
+        self.verticalLayout_2.addLayout(self.horizontalLayout_3)
+
+        self.horizontalLayout_14 = QHBoxLayout()
+        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
+        self.pushButton_Video_open = QPushButton(self.groupBox_UDP)
+        self.pushButton_Video_open.setObjectName(u"pushButton_Video_open")
+
+        self.horizontalLayout_14.addWidget(self.pushButton_Video_open)
+
+        self.pushButton_video_close = QPushButton(self.groupBox_UDP)
+        self.pushButton_video_close.setObjectName(u"pushButton_video_close")
+
+        self.horizontalLayout_14.addWidget(self.pushButton_video_close)
+
+
+        self.verticalLayout_2.addLayout(self.horizontalLayout_14)
 
         self.horizontalLayout_5 = QHBoxLayout()
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
@@ -324,6 +344,17 @@ class Ui_MainWindow(object):
 
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_15)
+
+        self.verticalLayout_7 = QVBoxLayout()
+        self.verticalLayout_7.setObjectName(u"verticalLayout_7")
+        self.progressBar_file = QProgressBar(self.groupBox_File)
+        self.progressBar_file.setObjectName(u"progressBar_file")
+        self.progressBar_file.setValue(0)
+
+        self.verticalLayout_7.addWidget(self.progressBar_file)
+
+
+        self.verticalLayout_3.addLayout(self.verticalLayout_7)
 
 
         self.verticalLayout.addWidget(self.groupBox_File)
@@ -605,14 +636,24 @@ class Ui_MainWindow(object):
         self.tabWidget_Display.addTab(self.tab_MUSIC2dSpectrum, "")
         self.tab_PoitCloud = QWidget()
         self.tab_PoitCloud.setObjectName(u"tab_PoitCloud")
-        self.horizontalLayout_3 = QHBoxLayout(self.tab_PoitCloud)
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.verticalLayout_6 = QVBoxLayout(self.tab_PoitCloud)
+        self.verticalLayout_6.setObjectName(u"verticalLayout_6")
         self.widget_PointCloud = QWidget(self.tab_PoitCloud)
         self.widget_PointCloud.setObjectName(u"widget_PointCloud")
 
-        self.horizontalLayout_3.addWidget(self.widget_PointCloud)
+        self.verticalLayout_6.addWidget(self.widget_PointCloud)
 
         self.tabWidget_Display.addTab(self.tab_PoitCloud, "")
+        self.tab_Video = QWidget()
+        self.tab_Video.setObjectName(u"tab_Video")
+        self.verticalLayout_8 = QVBoxLayout(self.tab_Video)
+        self.verticalLayout_8.setObjectName(u"verticalLayout_8")
+        self.widget_video = QWidget(self.tab_Video)
+        self.widget_video.setObjectName(u"widget_video")
+
+        self.verticalLayout_8.addWidget(self.widget_video)
+
+        self.tabWidget_Display.addTab(self.tab_Video, "")
 
         self.gridLayout.addWidget(self.tabWidget_Display, 0, 0, 1, 1)
 
@@ -647,7 +688,6 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
         self.pushButton_Connect.clicked.connect(MainWindow.UDP_connect)
-        self.pushButton_Disconnect.clicked.connect(MainWindow.UDP_disconnect)
         self.pushButton_ReadFile.clicked.connect(MainWindow.ReadFile)
         self.pushButton_Next.clicked.connect(MainWindow.ShowNextFrame)
         self.pushButton_CloseFile.clicked.connect(MainWindow.CloseFile)
@@ -658,9 +698,12 @@ class Ui_MainWindow(object):
         self.pushButton_MoveAngel.clicked.connect(MainWindow.AngelMove)
         self.pushButton_Play.clicked.connect(MainWindow.PlayMatfile)
         self.pushButton_2.clicked.connect(MainWindow.circleTest)
+        self.pushButton_Disconnect.clicked.connect(MainWindow.UDP_disconnect)
+        self.pushButton_Video_open.clicked.connect(MainWindow.VideoOpen)
+        self.pushButton_video_close.clicked.connect(MainWindow.VideoClose)
 
         self.tabWidget_Message.setCurrentIndex(0)
-        self.tabWidget_Display.setCurrentIndex(10)
+        self.tabWidget_Display.setCurrentIndex(11)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -672,9 +715,11 @@ class Ui_MainWindow(object):
         self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance ", None))
         self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_XYZpoint), QCoreApplication.translate("MainWindow", u"Point / Angle", None))
         self.groupBox_Config.setTitle(QCoreApplication.translate("MainWindow", u"Setting", None))
-        self.groupBox_UDP.setTitle(QCoreApplication.translate("MainWindow", u"UDP", None))
-        self.pushButton_Connect.setText(QCoreApplication.translate("MainWindow", u"UDP Connect", None))
-        self.pushButton_Disconnect.setText(QCoreApplication.translate("MainWindow", u"UDP Disconnect", None))
+        self.groupBox_UDP.setTitle(QCoreApplication.translate("MainWindow", u"DataString", None))
+        self.pushButton_Connect.setText(QCoreApplication.translate("MainWindow", u"Connect", None))
+        self.pushButton_Disconnect.setText(QCoreApplication.translate("MainWindow", u"Disconnect", None))
+        self.pushButton_Video_open.setText(QCoreApplication.translate("MainWindow", u"Video Open", None))
+        self.pushButton_video_close.setText(QCoreApplication.translate("MainWindow", u"Video Close", None))
         self.checkBox_IsSave.setText(QCoreApplication.translate("MainWindow", u"SaveMat", None))
         self.checkBox_HammingWindow.setText(QCoreApplication.translate("MainWindow", u"Hamming", None))
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
@@ -708,5 +753,6 @@ class Ui_MainWindow(object):
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_MUSICspectrum), QCoreApplication.translate("MainWindow", u"Spectrum", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_MUSIC2dSpectrum), QCoreApplication.translate("MainWindow", u"2DSpectrum", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_PoitCloud), QCoreApplication.translate("MainWindow", u"Point Cloud", None))
+        self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_Video), QCoreApplication.translate("MainWindow", u"Video", None))
     # retranslateUi
 

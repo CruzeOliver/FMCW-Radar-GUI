@@ -1112,7 +1112,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.frame_data_list.sort() # [推荐] 按时间排序
             self.total_radar_frames = len(self.frame_data_list)
 
-            self.bus.log.emit(f"找到 {self.total_radar_frames} 帧雷达数据")
+            self.bus.log.emit(f"✅ 已挂载雷达数据: {self.total_radar_frames} 帧")
+            self.progressBar_file.setMaximum(self.total_radar_frames)
             self.current_index = 0  # 初始化为第一帧
 
             # ---------- 视频文件自动挂载（可选） ----------
@@ -1326,6 +1327,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         if self.current_index < len(self.frame_data_list) - 1:
             self.current_index += 1
+            self.progressBar_file.setValue(self.current_index+1)
             self.bus.log.emit(f"显示帧：{self.frame_data_list[self.current_index]}")
             frame_struct = self.frame_all_data[self.frame_data_list[self.current_index]]
             frame_struct = frame_struct[0, 0] # (scipy 格式)

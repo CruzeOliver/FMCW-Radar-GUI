@@ -418,8 +418,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.bus.log.emit("✅已启用原始数据保存功能。\n"
                               f"保存文件：{self.save_filename}\n"
                               "每100帧数据自动保存一次，程序关闭时会保存剩余缓存。")
+            # 若摄像头已打开，同步启动视频录制
+            self._init_video_writer()
         else:
             self.save_buffer_to_mat()  # 保存剩余缓存
+            self._finalize_video_writer()
             self.buffer = []  # 清空缓存
             self.save_filename = None
             self.bus.log.emit("✅已关闭原始数据保存功能。")
@@ -599,7 +602,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 # ================== video视频相关内容 ==================
     def VideoOpen(self):
         """打开电脑摄像头并在 GUI 中显示实时画面"""
-        # 尝试打开摄像头
         self.video_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if self.video_cap.isOpened():
             self.bus.log.emit(f"✅ 已打开摄像头")
@@ -618,6 +620,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_Video_open.setEnabled(False)
         self.pushButton_video_close.setEnabled(True)
 
+        # 若保存复选框已勾选，则同步启动视频录制
+        if self.checkBox_IsSave.isChecked():
+            self._init_video_writer()
+
     def _video_grab_frame(self):
         """(主线程) 由 video_timer 定时调用，抓取一帧并送到显示组件"""
         if self.video_cap is None or not self.video_cap.isOpened():
@@ -625,9 +631,16 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         ret, frame = self.video_cap.read()
         if ret and frame is not None:
             self.display.update_video_frame('video', frame)
+            # 若正在录制，同步写入视频文件
+            if hasattr(self, 'video_writer') and self.video_writer is not None:
+                try:
+                    self.video_writer.write(frame)
+                except Exception as e:
+                    print(f"[video] 写入视频帧失败: {e}")
 
     def VideoClose(self):
         """关闭摄像头并停止视频流"""
+        self._finalize_video_writer()
         if hasattr(self, 'video_timer') and self.video_timer is not None:
             self.video_timer.stop()
             self.video_timer = None
@@ -642,6 +655,47 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             label.clear()
             label.setText("Camera Offline")
         self.bus.log.emit("✅ 摄像头已关闭")
+
+    def _init_video_writer(self):
+        """根据 self.save_filename 创建 cv2.VideoWriter"""
+        # 仅当摄像头已打开时才启动录制
+        if not hasattr(self, 'video_cap') or self.video_cap is None:
+            return
+        if not self.video_cap.isOpened():
+            return
+        try:
+            w = int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            h = int(self.video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = self.video_cap.get(cv2.CAP_PROP_FPS)
+            if fps <= 0 or fps > 120:
+                fps = 30.0
+        except Exception:
+            w, h = 640, 480
+            fps = 30.0
+
+        # 视频文件名与 .mat 文件同名，后缀改为 .avi
+        if self.save_filename.endswith('.mat'):
+            self.video_filename = self.save_filename[:-4] + '.avi'
+        else:
+            self.video_filename = self.save_filename + '.avi'
+
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        self.video_writer = cv2.VideoWriter(self.video_filename, fourcc, fps, (w, h))
+        if not self.video_writer.isOpened():
+            self.bus.log.emit(f"⛔ 无法创建视频文件: {self.video_filename}")
+            self.video_writer = None
+            self.video_filename = None
+        else:
+            self.bus.log.emit(f"🔴 开始录制视频: {self.video_filename}")
+
+    def _finalize_video_writer(self):
+        """释放 VideoWriter 并记录日志"""
+        if hasattr(self, 'video_writer') and self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+            if hasattr(self, 'video_filename') and self.video_filename:
+                self.bus.log.emit(f"✅ 视频已保存: {self.video_filename}")
+                self.video_filename = None
 
 # ================== 校准部分内容LS ==================
     """

@@ -176,6 +176,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.play_timer.timeout.connect(self.ShowNextFrame) # 定时器的timeout连接到显示下一帧的函数
         self.playback_speed_ms = 100 # 每帧播放间隔（毫秒）
         self.is_playing = False # 播放状态标志
+        # 视频回放同步变量
+        self.video_playback_cap = None   # cv2.VideoCapture（回放模式，非实时摄像头）
+        self.total_radar_frames = 0      # mat 文件中雷达总帧数
+        self.total_video_frames = 0      # 对应 .avi 文件中视频总帧数
         # 实时处理相关变量
         self.fft_results_1D = None
         self.fft_results_2D = None
@@ -566,9 +570,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
             self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
             if self.checkBox_channel_calibration.isChecked():
-                point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g')
+                point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g',show_all=False)
             else:
-                point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
+                point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
 
             # 更新表格显示距离计算结果
             row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
@@ -1094,7 +1098,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def read_mat_file(self, filename):
         """
-        读取 MAT 文件中的数据
+        读取 MAT 文件中的数据，并自动挂载同目录下同名的 .avi 视频文件。
+        若视频文件不存在或无法解码，仅记录日志提示，不影响 mat 数据加载。
         """
         try:
             data = loadmat(filename) # 读取 .mat 文件
@@ -1105,9 +1110,50 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             # 获取所有包含帧数据的变量（以 "frame" 开头的变量名）
             self.frame_data_list = [key for key in data.keys() if key.startswith('frame')]
             self.frame_data_list.sort() # [推荐] 按时间排序
+            self.total_radar_frames = len(self.frame_data_list)
 
-            self.bus.log.emit(f"找到 {len(self.frame_data_list)} 帧数据")
+            self.bus.log.emit(f"找到 {self.total_radar_frames} 帧雷达数据")
             self.current_index = 0  # 初始化为第一帧
+
+            # ---------- 视频文件自动挂载（可选） ----------
+            # 释放上一次回放可能残留的视频句柄
+            if self.video_playback_cap is not None:
+                self.video_playback_cap.release()
+                self.video_playback_cap = None
+            self.total_video_frames = 0
+
+            # 在同目录下查找同名 .avi 文件
+            if filename.lower().endswith('.mat'):
+                video_path = filename[:-4] + '.avi'
+            else:
+                video_path = filename + '.avi'
+
+            if not os.path.isfile(video_path):
+                self.bus.log.emit(f"⚠️ 未找到同名视频文件，仅加载雷达数据")
+            else:
+                self.video_playback_cap = cv2.VideoCapture(video_path)
+                if not self.video_playback_cap.isOpened():
+                    self.bus.log.emit(
+                        f"⚠️ 视频文件存在但无法解码，仅加载雷达数据:\n"
+                        f"  {video_path}"
+                    )
+                    self._release_video_playback()
+                else:
+                    self.total_video_frames = int(
+                        self.video_playback_cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                    )
+                    if self.total_video_frames <= 0:
+                        self.bus.log.emit(
+                            f"⚠️ 视频文件总帧数为 0，仅加载雷达数据:\n"
+                            f"  {video_path}"
+                        )
+                        self._release_video_playback()
+                    else:
+                        self.bus.log.emit(
+                            f"✅ 已挂载视频: {os.path.basename(video_path)}"
+                            f"  ({self.total_video_frames} 帧)"
+                        )
+            # ----------------------------------------
 
             # 获取第一帧的数据
             if self.frame_data_list:
@@ -1120,7 +1166,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         except Exception as e:
             print(f"读取文件时出错: {e}")
+            self._release_video_playback()
             QMessageBox.warning(self, "读取失败", f"读取文件失败：{e}")
+
+    def _release_video_playback(self):
+        """释放回放模式下的视频句柄（不影响实时摄像头 self.video_cap）"""
+        if self.video_playback_cap is not None:
+            self.video_playback_cap.release()
+            self.video_playback_cap = None
+        self.total_video_frames = 0
 
     def PlayMatfile(self):
         """
@@ -1225,9 +1279,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
         self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
         if self.checkBox_channel_calibration.isChecked():
-            point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g')
+            point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g', show_all=False)
         else:
-            point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g')
+            point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
         # 更新表格显示距离计算结果
         row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
                             f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",
@@ -1252,6 +1306,20 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.tableWidget_point.setItem(row_count, i, item)
         self.tableWidget_point.scrollToBottom()
 
+        # ---------- 视频帧同步（回放模式） ----------
+        if self.video_playback_cap is not None and self.total_video_frames > 0:
+            target_video_frame = int(
+                self.current_index *
+                (self.total_video_frames / max(1, self.total_radar_frames))
+            )
+            try:
+                self.video_playback_cap.set(cv2.CAP_PROP_POS_FRAMES, target_video_frame)
+                ret, frame = self.video_playback_cap.read()
+                if ret and frame is not None:
+                    self.display.update_video_frame('video', frame)
+            except Exception as e:
+                print(f"[video playback] 跳帧失败: {e}")
+
     def ShowNextFrame(self):
         """
         显示下一帧的数据，供手动和定时器调用。
@@ -1270,9 +1338,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 QMessageBox.information(self, "没有更多数据", "已到达文件末尾！")
 
     def CloseFile(self):
+        self._release_video_playback()
         self.frame_all_data = None
         self.frame_data_list = []  # 清空数据
         self.current_index = 0  # 重置索引
+        self.total_radar_frames = 0
         self.textEdit_log.clear()  # 清空日志
         self.tableWidget_distance.clearContents()  # 清空距离表格内容
         self.tableWidget_distance.setRowCount(0)
@@ -1383,6 +1453,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def closeEvent(self, e):
         self.UDP_disconnect()
         self.VideoClose()
+        self._release_video_playback()
         super().closeEvent(e)
 
 def message_handler(msg_type: QtMsgType, context, msg: str):

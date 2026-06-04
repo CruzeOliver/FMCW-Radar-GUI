@@ -29,6 +29,7 @@ class PgDisplay:
                  frequency_placeholders: Dict[str, QWidget],
                  MUSICspectrum_placeholders: Dict[str, QWidget],
                  MUSIC2dSpectrum_placeholders: Dict[str, QWidget],
+                 video_placeholders: Dict[str, QWidget],
                  *,
                  r_max: float = 6.0,         # 最大量程 (距离)
                  fov_deg: float = 180.0,      # 扇形角度（例如120°）
@@ -53,7 +54,7 @@ class PgDisplay:
         self.pg_frequency_dict: Dict[str, Dict[str, Any]] = {} # frequency 图像
         self.pg_MUSICspectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSICspectrum 图像
         self.pg_MUSIC2dSpectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSIC2dSpectrum 图像
-
+        self.pg_video_dict: Dict[str, Dict[str, Any]] = {} # Video 图像
         self._colormap = self._build_jet_colormap()
         #self._colormap = pg.colormap.get('jet')
 
@@ -71,7 +72,7 @@ class PgDisplay:
         self._init_point_cloud_semicircle(point_cloud_placeholders)
         self._init_MUSICspectrum(MUSICspectrum_placeholders)
         self._init_MUSIC2dSpectrum(MUSIC2dSpectrum_placeholders)
-
+        self._init_video(video_placeholders)
         self.frequency_cache = {
             'FFT': deque(maxlen=20),
             'Macleod': deque(maxlen=20),
@@ -898,7 +899,7 @@ class PgDisplay:
                 h['peak_scatter'].setData([peak_az], [peak_el])
 
     def update_point_cloud_polar(self, key: str,
-                             r: float,  
+                             r: float,
                              theta_deg: float,
                              *,
                              size: float = 5.0,
@@ -945,6 +946,33 @@ class PgDisplay:
                 'y': y[-1] if len(y) > 0 else 0.0,
                 'r': r,
                 'theta_deg': theta_deg}
+
+    #-------------------- 视频相关内容 --------------------
+    def update_video_frame(self, key: str, frame: np.ndarray):
+        """
+        更新视频显示区域。
+
+        参数:
+            key (str): 视频占位符的键名，如 'video'
+            frame (np.ndarray): OpenCV 读取的 BGR 图像帧 (H, W, 3) uint8
+        """
+        if key not in self.pg_video_dict:
+            return
+        h = self.pg_video_dict[key]
+        label = h['label']
+        if frame is None or frame.size == 0:
+            return
+        try:
+            # BGR → RGB：反转最后一个轴（颜色通道），.copy() 确保 C-contiguous
+            rgb = np.ascontiguousarray(frame[..., ::-1])
+            h_img, w_img, ch = rgb.shape
+            bytes_per_line = ch * w_img
+            from PySide6.QtGui import QImage, QPixmap
+            qimg = QImage(rgb.data, w_img, h_img, bytes_per_line, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimg)
+            label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        except Exception as e:
+            print(f"[video] 更新视频帧失败: {e}")
 
 
     # -------------------- Private: Init Helpers --------------------
@@ -1349,6 +1377,17 @@ class PgDisplay:
         ]
         return pg.ColorMap(pos, colors)
 
+    def _init_video(self, placeholders: Dict[str, QWidget]):
+        for key, container in placeholders.items():
+            layout = QVBoxLayout(container)
+            label = QLabel("Camera Offline")
+            label.setAlignment(Qt.AlignCenter)
+            label.setMinimumSize(320, 240)
+            label.setScaledContents(True)
+            label.setStyleSheet("background-color: #1a1a2e; color: #888; font-size: 14pt; border: 2px dashed #555;")
+            layout.addWidget(label)
+            self.pg_video_dict[key] = {'label': label}
+
     def reset(self):
         """重置所有图表数据，清空显示内容并重置状态"""
         # 重置 ADC 和 1DFFT 曲线
@@ -1483,3 +1522,8 @@ class PgDisplay:
                 plot_item.enableAutoRange(enable=True)
                 plot_item.autoRange()
 
+        # 重置视频显示
+        for key, h in self.pg_video_dict.items():
+            label = h['label']
+            label.clear()
+            label.setText("Camera Offline")

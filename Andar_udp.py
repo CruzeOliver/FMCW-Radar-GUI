@@ -11,6 +11,7 @@ import warnings
 import time
 import csv
 import os
+import cv2
 from datetime import datetime
 from data_processing import *
 import motorController
@@ -56,18 +57,15 @@ class MotorTestWorker(QThread):
             if not self.is_running:
                 self.log_signal.emit("[WARN] 测试被强制停止。")
                 return
-
             # 2. 调用电机移动 (调用主窗口对象的方法)
             try:
                 success = self.main_ref.CH375motor.motor_start(stepAngel)
             except Exception as e:
                 self.log_signal.emit(f"⛔ 电机调用异常: {e}")
                 success = False
-
             if success:
                 currentAngel += stepAngel
                 time.sleep(delayTime)  # 等待电机稳定
-
                 # --- 安全访问主线程的数据 ---
                 try:
                     if self.main_ref.AZangelList:
@@ -76,18 +74,14 @@ class MotorTestWorker(QThread):
                         TestAngle = 0.0
                 except:
                     TestAngle = 0.0
-
                 self.log_signal.emit(f"[INFO] 当前角度={currentAngel:.1f}, 测得角度={TestAngle:.2f}")
             else:
                 self.log_signal.emit(f"⛔ 第 {i+1} 次移动失败")
                 TestAngle = float('nan')
-
             results_data.append([currentAngel, TestAngle])
-
         # --- 循环结束，保存文件 ---
         self.log_signal.emit(f"[INFO] 采集完毕，正在保存 CSV...")
         self.save_csv(results_data, csv_header)
-
         # 发送结束信号
         self.finished_signal.emit()
 
@@ -208,7 +202,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             amp_phase_placeholders=self.amp_phase_placeholders,
             frequency_placeholders=self.frequency_placeholders,
             MUSICspectrum_placeholders=self.MUSICspectrum_placeholders,
-            MUSIC2dSpectrum_placeholders=self.MUSIC2dSpectrum_placeholders
+            MUSIC2dSpectrum_placeholders=self.MUSIC2dSpectrum_placeholders,
+            video_placeholders=self.video_placeholders
         )
         # 转台电机实例化
         self.AZangelList = collections.deque(maxlen=5)
@@ -237,6 +232,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         frequency_keys = ['frequency']
         MUSICspectrum_keys = ['MUSICspectrum']
         MUSICspectrum2d_keys = ['MUSIC2dSpectrum']
+        video_keys = ['video']
 
         self.adc_placeholders = {k: getattr(self, f'widget_{k}') for k in adc4_keys}
         self.fft1d_placeholders = {k: getattr(self, f'widget_{k}') for k in fft1d_keys}
@@ -248,6 +244,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.frequency_placeholders = {k: getattr(self, f'widget_{k}') for k in frequency_keys}
         self.MUSICspectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum_keys}
         self.MUSIC2dSpectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum2d_keys}
+        self.video_placeholders = {k: getattr(self, f'widget_{k}') for k in video_keys}
 
     def setup_distance_table(self):
         self.tableWidget_distance.setColumnCount(11)
@@ -275,6 +272,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.pushButton_Next.setEnabled(False)
         self.pushButton_SaveTable.setEnabled(False)
         self.pushButton_Play.setEnabled(False)
+        self.pushButton_video_close.setEnabled(False)
         #self.pushButton_CloseFile.setEnabled(False)
 
     def generate_unique_time(self):
@@ -597,6 +595,53 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         except Exception as e:
             # (重要) 捕捉处理过程中发生的任何错误，防止GUI崩溃
             self.bus.log.emit(f"⛔ 帧 {fid} 处理失败: {e}")
+
+# ================== video视频相关内容 ==================
+    def VideoOpen(self):
+        """打开电脑摄像头并在 GUI 中显示实时画面"""
+        # 尝试打开摄像头
+        self.video_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        if self.video_cap.isOpened():
+            self.bus.log.emit(f"✅ 已打开摄像头")
+        else:
+            self.bus.log.emit("⛔ 无法打开任何摄像头，请检查设备连接")
+            self.video_cap = None
+            return
+
+        self.video_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.video_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+        self.video_timer = QTimer(self)
+        self.video_timer.timeout.connect(self._video_grab_frame)
+        self.video_timer.start(33)  # ~30 FPS
+
+        self.pushButton_Video_open.setEnabled(False)
+        self.pushButton_video_close.setEnabled(True)
+
+    def _video_grab_frame(self):
+        """(主线程) 由 video_timer 定时调用，抓取一帧并送到显示组件"""
+        if self.video_cap is None or not self.video_cap.isOpened():
+            return
+        ret, frame = self.video_cap.read()
+        if ret and frame is not None:
+            self.display.update_video_frame('video', frame)
+
+    def VideoClose(self):
+        """关闭摄像头并停止视频流"""
+        if hasattr(self, 'video_timer') and self.video_timer is not None:
+            self.video_timer.stop()
+            self.video_timer = None
+        if hasattr(self, 'video_cap') and self.video_cap is not None:
+            self.video_cap.release()
+            self.video_cap = None
+        self.pushButton_Video_open.setEnabled(True)
+        self.pushButton_video_close.setEnabled(False)
+        # 恢复视频占位文本
+        if 'video' in self.display.pg_video_dict:
+            label = self.display.pg_video_dict['video']['label']
+            label.clear()
+            label.setText("Camera Offline")
+        self.bus.log.emit("✅ 摄像头已关闭")
 
 # ================== 校准部分内容LS ==================
     """
@@ -1283,6 +1328,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, e):
         self.UDP_disconnect()
+        self.VideoClose()
         super().closeEvent(e)
 
 def message_handler(msg_type: QtMsgType, context, msg: str):

@@ -424,6 +424,18 @@ Compensates the **original IQ data** received by each antenna to eliminate chann
 - **Ensure target intensity consistency** Calibrated amplitude spectrum truly reflects target echo strength, enabling reliable comparison among channels.
 - **Radar system debugging** Used to evaluate and verify channel consistency of antenna arrays, a key step in system integration and verification.
 
+### Radar-Video Synchronized Data Loop (Data Logger)
+
+To support multi-modal sensor fusion and calibration workflows, the application includes a non-intrusive synchronized video recording and playback module.
+
+**Key Capabilities:**
+- **Synchronized Video Recording:** Hooks into the raw `.mat` recording pipeline, automatically launching a `cv2.VideoWriter` instance to capture 30FPS hardware-accelerated video (`CAP_DSHOW`), bound to the same directory with implicit identical naming for perfect data paired-consistency.
+
+- **Linear-Proportional Playback Alignment:** Leverages a deterministic frame-index mapping algorithm during data review. It continuously synchronizes the `.avi` video playback timeline based on the current radar frame index (`current_frame_idx`), achieving millisecond-level spatio-temporal alignment across `Play`, `Pause`, and single-step `Next` operations.
+
+- **Fail-Safe Verification:** Features ratio-metric frame count checking at the UI loading layer, preventing data mismatching errors during dual-stream readbacks.
+
+
 ## Contribution
 
 If you find any issues or have suggestions for improvement, feel free to submit an Issue or Pull Request.

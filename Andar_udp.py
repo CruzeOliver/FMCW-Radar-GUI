@@ -4,7 +4,7 @@ from PySide6.QtCore import QThread,QObject, Signal, Qt, QtMsgType, qInstallMessa
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
 from scipy.io import loadmat
-import scipy.linalg
+import scipy
 import numpy as np
 import collections
 import warnings

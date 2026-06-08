@@ -18,6 +18,7 @@ import motorController
 from udp_handler import *
 from display_pg import PgDisplay
 from WLS_Calibration import *
+from calibration_manager import CalibrationManager
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
 PEER_IP = "192.168.1.55"     # 雷达设备IP
@@ -183,15 +184,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 实时处理相关变量
         self.fft_results_1D = None
         self.fft_results_2D = None
-        # 校准相关变量
-        self.calibration_list_FFTpeak = []
-        self.calibration_list_LS= []
-        self.calibration_list_WLS = []
-        self.warmup_count = 0
-        self.warmup_avg = None
-        self.alpha_matrix = None
-        self.phi_matrix = None
-        self.v_calibration = None #ILS校准向量
+        # 校准管理器（封装校准状态机、矩阵加载）
+        self.calib_mgr = CalibrationManager(
+            on_complete=self._on_calibration_complete,
+            on_log=lambda msg: self.bus.log.emit(msg),
+            on_show_info=lambda t, m: QMessageBox.information(self, t, m),
+            on_show_warning=lambda t, m: QMessageBox.warning(self, t, m),
+        )
         # display 控件相关变量 GUI显示界面绑定实例化
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.5
@@ -413,6 +412,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         else:
             self.bus.log.emit("⚠️已关闭校准模式。")
 
+    def _on_calibration_complete(self):
+        """校准完成后的清理（由 CalibrationManager 回调）。"""
+        self.CloseFile()
+        self.UDP_disconnect()
+        self.play_timer.stop()
+        self.pushButton_Play.setText("Play")
+
     def SaveMatChange(self):
         """启用或关闭保存 .mat 文件功能"""
         if self.checkBox_IsSave.isChecked():
@@ -542,15 +548,22 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
                 zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
                 if self.radioButton_WLS.isChecked():
-                    self.calibrate_on_demand_WLS(zij_vector, self.fft_results_2D, peak_idx)
+                    mode = 'WLS'
                 elif self.radioButton_FFT.isChecked():
-                    self.calibrate_on_demand_FFT(iq)
+                    mode = 'FFT'
                 elif self.radioButton_LS.isChecked():
-                    self.calibrate_on_demand_LS(zij_vector)
+                    mode = 'LS'
+                else:
+                    mode = None
+                if mode:
+                    self.calib_mgr.calibrate(
+                        mode, zij_vector=zij_vector,
+                        fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
+                        iq_data=iq)
 
             # 根据2dfft结果 将TX和RX 进行分开幅相校准
-            if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
-                iq = apply_channel_calibration(iq, self.alpha_matrix, self.phi_matrix)
+            if self.checkBox_channel_calibration.isChecked() and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
+                iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
                 self.fft_results_1D = Perform1D_FFT(iq)
                 self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
 
@@ -701,280 +714,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 self.bus.log.emit(f"✅ 视频已保存: {self.video_filename}")
                 self.video_filename = None
 
-# ================== 校准部分内容LS ==================
-    """
-    基于最小二乘法进行幅相校准流程
-    校准：设备与自反呈0度校准
-    原始数据（IQ数据）经2D FFT得到含有噪声的测量值（Z_ij_vector_frame）
-    多帧平均后得到降噪后的测量值（Z_ij_vector_avg）
-    通过最小二乘模型
-    得到固定的校准矩阵（alpha_matrix, phi_matrix）
-    保存校准矩阵到NumPy或者npz
-    加载校准矩阵到程序
-    对实时数据进行校准
-    前20帧用于预热并计算参考平均值，后50帧用于计算校准矩阵。
-    """
-    def calibrate_on_demand_LS(self, zij_vector: np.ndarray):
-        if zij_vector.shape != (4,):
-            raise ValueError("zij_vector 必须是包含4个元素的向量。")
-
-        # --- 阶段一：雷达预热与基准计算 ---
-        if self.warmup_count < 20:
-            self.calibration_list_LS.append(zij_vector)
-            self.warmup_count += 1
-            if self.warmup_count == 20:
-                print("预热完成，将开始收集数据。")
-                # 预热阶段结束，计算基准平均值
-                warmup_vectors = np.array(self.calibration_list_LS)
-                # 计算每个通道的平均幅值
-                self.warmup_avg = np.mean(np.abs(warmup_vectors), axis=0)
-                # 清空列表，为下一阶段做准备
-                self.calibration_list_LS.clear()
-            return
-
-        # --- 阶段二：正式校准与数据过滤 ---
-        if len(self.calibration_list_LS) < 50:
-            # 计算当前帧的幅值
-            current_amplitudes = np.abs(zij_vector)
-
-            # 检查幅值是否在预热平均值2倍的范围内
-            # 这里使用 all() 确保所有4个通道都符合条件
-            is_valid = np.all(current_amplitudes <= 2 * self.warmup_avg)
-
-            if is_valid:
-                self.calibration_list_LS.append(zij_vector)
-        current_count = len(self.calibration_list_LS)
-
-        if current_count >= 50:
-            print("已收集 50 帧，将立即执行校准...")
-            # 1. 计算平均值
-            zij_vectors_to_calibrate = np.array(self.calibration_list_LS)
-            zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0)
-
-            # 2. 调用校准函数
-            alpha_matrix = amplitude_calibration(zij_vector_avg)
-            phi_matrix = phase_calibration(zij_vector_avg)
-
-            # 3. 保存
-            filename = f"{self.generate_unique_time()} calibration_matrix_LS"
-            np.savez(filename, alpha=0.9*alpha_matrix, phi=0.9*phi_matrix) # 适当缩放
-
-            # 4. 清空列表并重置状态，为下一次校准做准备
-            self.calibration_list_LS.clear()
-            self.warmup_count = 0
-            self.warmup_avg = None
-
-            # 5. 断开连接并提示
-            self.CloseFile()
-            self.UDP_disconnect()
-            self.play_timer.stop()
-            self.pushButton_Play.setText("Play")
-            QMessageBox.information(self, "校准完成", f"校准矩阵保存到：\n{filename}。")
-
-# ================== 校准部分内容WLS ==================
-    def calibrate_on_demand_WLS(
-        self,
-        zij_vector: np.ndarray,
-        z_ij_spectrum_frame: np.ndarray,  # (4, N_Doppler, N_Range)
-        peak_idx: tuple                   # (c0, r0)
-    ):
-        """
-        [WLS 真实应用版]
-        基于加权最小二乘法 (WLS) 进行幅相校准流程。
-        """
-        if zij_vector.shape != (4,):
-            raise ValueError("zij_vector 必须是包含4个元素的向量。")
-        if z_ij_spectrum_frame.shape[0] != 4:
-            raise ValueError("z_ij_spectrum_frame 的第一维必须为 4。")
-        n_ant = 4  # 4个虚拟通道
-        # ================================
-        # 阶段一：雷达预热 (保持不变)
-        # ================================
-        if self.warmup_count < 20:
-            # 统一强制转换，保证后续 shape 一致
-            zij_vector = np.asarray(zij_vector).reshape(4,)
-            z_ij_spectrum_frame = np.asarray(z_ij_spectrum_frame)
-            self.calibration_list_WLS.append((zij_vector, z_ij_spectrum_frame))
-            self.warmup_count += 1
-
-            if self.warmup_count == 20:
-                warmup_vectors = np.array([data[0] for data in self.calibration_list_WLS])
-                self.warmup_avg = np.mean(np.abs(warmup_vectors), axis=0)
-                self.calibration_list_WLS.clear()
-                print("预热完成，将开始收集数据。")
-            return
-        # ================================
-        # 阶段二：正式校准与数据过滤 (保持不变)
-        # ================================
-        if len(self.calibration_list_WLS) < 50:
-            current_amplitudes = np.abs(zij_vector)
-            is_valid = np.all(current_amplitudes <= 2 * self.warmup_avg)
-            if is_valid:
-                self.calibration_list_WLS.append((np.asarray(zij_vector).reshape(4,),
-                                            np.asarray(z_ij_spectrum_frame)))
-        current_count = len(self.calibration_list_WLS)
-        # ================================
-        # 阶段三：WLS 计算（核心加入防御）
-        # ================================
-        if current_count >= 50:
-            print("已收集 50 帧，将立即执行校准...")
-            valid_zij_list = []
-            valid_spectrum_list = []
-            bad_indices = []
-            # ---- 防御性检查：确保每帧 shape/type 完整一致 ----
-            for idx, item in enumerate(self.calibration_list_WLS):
-                if not (isinstance(item, (tuple, list)) and len(item) >= 2):
-                    bad_indices.append((idx, "not tuple/list or len<2"))
-                    continue
-                vec, spec = item
-                # vec：必须能转成 ndarray 并 reshape 成 (4,)
-                try:
-                    vec = np.asarray(vec).reshape(4,)
-                except Exception:
-                    bad_indices.append((idx, f"vec shape invalid: {np.asarray(vec).shape}"))
-                    continue
-                # spec：必须能转成 ndarray，且第一维为 4
-                try:
-                    spec = np.asarray(spec)
-                except Exception:
-                    bad_indices.append((idx, f"spectrum convert failed"))
-                    continue
-                if spec.ndim < 2 or spec.shape[0] != 4:
-                    bad_indices.append((idx, f"spectrum shape={spec.shape}"))
-                    continue
-                valid_zij_list.append(vec)
-                valid_spectrum_list.append(spec)
-            # ---- 输出被跳过帧的信息（用于调试） ----
-            if bad_indices:
-                print(f"[WLS] 跳过 {len(bad_indices)} 个非法帧，示例：{bad_indices[:5]}")
-
-            if len(valid_zij_list) == 0:
-                QMessageBox.warning(self, "校准失败", "无有效帧可用于校准（所有帧不合格）。")
-                return
-            # ---- 拼接为 ndarray（保证不会再报 ValueError） ----
-            zij_vectors_to_calibrate = np.stack(valid_zij_list, axis=0)       # (N_valid, 4)
-            spectrums_to_calibrate   = np.stack(valid_spectrum_list, axis=0) # (N_valid, 4, N_Doppler, N_Range)
-            current_count = zij_vectors_to_calibrate.shape[0]  # 更新有效数量
-            # ================================
-            #  后续保持不变：计算平均、噪声、权重、WLS
-            # ================================
-            zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0)
-            noise_power_matrix_frames = np.zeros((current_count, n_ant))
-            for frame_idx in range(current_count):
-                for channel_idx in range(n_ant):
-                    noise_power = estimate_noise_power_from_frame(
-                        spectrums_to_calibrate[frame_idx, channel_idx], peak_idx
-                    )
-                    noise_power_matrix_frames[frame_idx, channel_idx] = noise_power
-            avg_noise_power_per_channel = np.mean(noise_power_matrix_frames, axis=0)
-            weights = calculate_weights(zij_vector_avg, avg_noise_power_per_channel, n_obs=current_count)
-            alpha_matrix = amplitude_calibration_wals(zij_vector_avg, weights)
-            phi_matrix = phase_calibration_wls(zij_vector_avg, weights)
-            filename = f"{self.generate_unique_time()} calibration_matrix_WLS"
-            np.savez(filename, alpha=alpha_matrix, phi=phi_matrix)
-            # ----- 清理环境 -----
-            self.calibration_list_WLS.clear()
-            self.warmup_count = 0
-            self.warmup_avg = None
-
-            self.CloseFile()
-            self.UDP_disconnect()
-            self.play_timer.stop()
-            self.pushButton_Play.setText("Play")
-            QMessageBox.information(self, "WLS 校准完成", f"WLS 校准矩阵保存到：\n{filename}。")
-
-# ================== 校准部分内容FFT峰值校准 ==================
-    def calibrate_on_demand_FFT(self, iq_virtual_data: np.ndarray):
-        """
-        [V4 - 采用“忽略N, 平均M”的新逻辑]
-        此函数是您的状态机，它现在正确地接收 (4, N_obs, N_samples) 的IQ数据。
-
-        新逻辑:
-        1. 忽略 (丢弃) 前 20 帧数据 (预热)。
-        2. 收集接下来的 50 帧数据。
-        3. 对这 50 帧数据进行平均，并执行校准。
-        """
-        calib_peak_bin = None  # 用于锁定峰值 Bin 的变量
-        try:
-            if iq_virtual_data.ndim != 3 or iq_virtual_data.shape[0] != 4:
-                print(f"错误: 输入IQ数据维度必须是 (4, N_obs, N_samples), 实际为 {iq_virtual_data.shape}")
-                return
-            K_TX, L_RX = 2, 2
-            M_virtual, N_obs, N_samples = iq_virtual_data.shape
-            # (A) 执行 FFT
-            range_fft_results = np.fft.fft(iq_virtual_data, axis=2)
-            # (B) 自动查找峰值 Bin (仅在第一次运行时执行一次)
-            if calib_peak_bin is None:
-                # 仅在第一次运行时查找和锁定峰值
-                fft_magnitude = np.abs(range_fft_results)
-                avg_range_profile = np.mean(fft_magnitude, axis=(0, 1))
-                avg_range_profile[0] = 0 # 忽略直流
-                calib_peak_bin = int(np.argmax(avg_range_profile))
-            # (C) 提取复数增益向量 (使用锁定的 Bin)
-            peak_complex_values = range_fft_results[:, :, calib_peak_bin]
-            zij_vector = np.mean(peak_complex_values, axis=1) # (4,) 向量
-        except Exception as e:
-            print(f"错误: 处理IQ数据失败: {e}")
-            return
-        # --- 阶段 0 完毕，zij_vector (4,) 已生成 ---
-        self.warmup_count += 1 # 充当总帧数计数器
-        # --- 阶段一：雷达预热 (忽略前 20 帧) ---
-        if self.warmup_count <= 20:
-            #print(f"预热中... 丢弃第 {self.warmup_count}/20 帧")
-            if self.warmup_count == 20:
-                print("预热完成，将开始收集数据。")
-            return # 丢弃这一帧的数据，直接返回
-
-        # --- 阶段二：收集 50 帧 ---
-        if len(self.calibration_list_FFTpeak) < 50:
-            self.calibration_list_FFTpeak.append(zij_vector)
-            #print(f"收集中... {len(self.calibration_list_FFTpeak)}/50 帧 (总帧数: {self.warmup_count})")
-            # 检查是否刚收集满50帧
-            if len(self.calibration_list_FFTpeak) < 50:
-                return # 还未满50帧，返回
-            else:
-                print("已收集 50 帧，将立即执行校准...")
-
-        # --- 阶段三：执行校准 ---
-        # 1. 计算平均值
-        zij_vectors_to_calibrate = np.array(self.calibration_list_FFTpeak)
-        zij_vector_avg = np.mean(zij_vectors_to_calibrate, axis=0) # shape (4,)
-        # 2. [FFT峰值法逻辑]
-        try:
-            # ---- 正确的校准补偿因子计算（使用 TX0-RX0 作为参考） ----
-            ref_val = zij_vector_avg[0]   # TX0-RX0 作为参考通道
-            # 幅度补偿因子：使校准后 |zij| 与参考一致
-            alpha = np.abs(ref_val) / np.abs(zij_vector_avg)
-            # 相位补偿因子：使校准后相位与参考一致
-            phi = np.angle(ref_val) - np.angle(zij_vector_avg)
-            phi = -phi
-            # 相位包装到 (-pi, pi]
-            phi = (phi + np.pi) % (2 * np.pi) - np.pi
-            #phi = -phi  # 取负号作为补偿
-            alpha_matrix = alpha.reshape((K_TX, L_RX))
-            phi_matrix   = phi.reshape((K_TX, L_RX))
-            print("校准矩阵计算成功。")
-        except Exception as e:
-            print(f"错误: 无法重塑 (4,) 向量或计算矩阵: {e}")
-            self.reset_calibration_state() # 重置状态
-            QMessageBox.warning(self, "校准失败", f"校准计算失败: {e}")
-            return
-
-        # 3. 保存
-        filename = f"{self.generate_unique_time()} calibration_matrix_FFTpeak"
-        np.savez(filename, alpha=1.2*alpha_matrix, phi=1.2*phi_matrix)
-        print(f"校准矩阵已保存到: {filename}")
-
-        # 5. 断开连接并提示 (您的代码)
-        self.calibration_list_FFTpeak.clear()
-        self.warmup_count = 0
-        self.warmup_avg = None
-        self.CloseFile()
-        self.UDP_disconnect()
-        self.play_timer.stop()
-        self.pushButton_Play.setText("Play")
-        QMessageBox.information(self, "校准完成", f"校准矩阵保存到：\n{filename}。")
-
+# ================== 校准矩阵文件读取 ==================
     def LoadCalibratioMode(self):
         """
         打开文件对话框，选择 .npz 文件并读取数据
@@ -983,23 +723,18 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         file_dialog.setNameFilter("Mode files (*.npz)")
         if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
-            cal_data = np.load(file_path)
+            result = self.calib_mgr.load_calibration_file(file_path)
             self.bus.log.emit(f"已加载校准模型文件：{file_path}")
             file_name = os.path.basename(file_path)
             self.lineEdit_ModeName.setText(file_name)
 
-            # 使用get方法获取数据，键不存在时返回None
-            self.v_calibration = cal_data.get('v_calib', None)
-            self.alpha_matrix = cal_data.get('alpha', None)
-            self.phi_matrix = cal_data.get('phi', None)
-
             # 日志输出（仅在存在时打印，避免None值）
-            if self.v_calibration is not None:
-                self.bus.log.emit(f"ILS校准向量：\n{self.v_calibration}")
+            if result['v_calib'] is not None:
+                self.bus.log.emit(f"ILS校准向量：\n{result['v_calib']}")
 
-            if self.alpha_matrix is not None and self.phi_matrix is not None:
-                self.bus.log.emit(f"幅度校准矩阵：\n{self.alpha_matrix}")
-                self.bus.log.emit(f"相位校准矩阵：\n{self.phi_matrix}")
+            if result['alpha'] is not None and result['phi'] is not None:
+                self.bus.log.emit(f"幅度校准矩阵：\n{result['alpha']}")
+                self.bus.log.emit(f"相位校准矩阵：\n{result['phi']}")
 
 # ================== 文件读取部分内容 ==================
     def save_to_buffer(self, frame_data, sample_number, chirp_number):
@@ -1251,16 +986,23 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
             zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
             if self.radioButton_WLS.isChecked():
-                self.calibrate_on_demand_WLS(zij_vector, self.fft_results_2D, peak_idx)
+                mode = 'WLS'
             elif self.radioButton_FFT.isChecked():
-                self.calibrate_on_demand_FFT(iq)
+                mode = 'FFT'
             elif self.radioButton_LS.isChecked():
-                self.calibrate_on_demand_LS(zij_vector)
+                mode = 'LS'
+            else:
+                mode = None
+            if mode:
+                self.calib_mgr.calibrate(
+                    mode, zij_vector=zij_vector,
+                    fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
+                    iq_data=iq)
 
         # 根据2dfft结果 将TX和RX 进行分开幅相校准
-        if self.checkBox_channel_calibration.isChecked() and self.alpha_matrix is not None and self.phi_matrix is not None:
+        if self.checkBox_channel_calibration.isChecked() and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
             # 将校准后的IQ数据赋值给一个新的变量
-            calibrated_iq = apply_channel_calibration(iq, self.alpha_matrix, self.phi_matrix)
+            calibrated_iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
             #对新的IQ数据 重新计算FFT
             self.fft_results_1D = Perform1D_FFT(calibrated_iq)
             self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
@@ -1351,10 +1093,12 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_point.clearContents()  # 清空点云表格内容
         self.tableWidget_point.setRowCount(0)
         self.lineEdit_ModeName.clear()
-        self.alpha_matrix = None
-        self.phi_matrix = None
+        self.calib_mgr.alpha_matrix = None
+        self.calib_mgr.phi_matrix = None
+        self.calib_mgr.reset_state()
         self.display.reset()
         self.bus.log.emit("已关闭文件，清空数据")
+        self.progressBar_file.setValue(0)
         self.setupInitialUIState()
 
     def SaveTable(self):

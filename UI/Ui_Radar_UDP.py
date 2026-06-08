@@ -447,11 +447,15 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_9.addWidget(self.checkBox_CalibrationMode)
 
-        self.checkBox_channel_calibration = QCheckBox(self.groupBox_calibration)
-        self.checkBox_channel_calibration.setObjectName(u"checkBox_channel_calibration")
-        self.checkBox_channel_calibration.setLayoutDirection(Qt.RightToLeft)
+        self.horizontalSpacer_6 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.horizontalLayout_9.addWidget(self.checkBox_channel_calibration)
+        self.horizontalLayout_9.addItem(self.horizontalSpacer_6)
+
+        self.checkBox_addnoise = QCheckBox(self.groupBox_calibration)
+        self.checkBox_addnoise.setObjectName(u"checkBox_addnoise")
+        self.checkBox_addnoise.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_9.addWidget(self.checkBox_addnoise)
 
         self.horizontalSpacer_12 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -480,6 +484,25 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_17)
 
+        self.horizontalLayout_18 = QHBoxLayout()
+        self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
+        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_18.addItem(self.horizontalSpacer_3)
+
+        self.checkBox_channel_calibration = QCheckBox(self.groupBox_calibration)
+        self.checkBox_channel_calibration.setObjectName(u"checkBox_channel_calibration")
+        self.checkBox_channel_calibration.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_18.addWidget(self.checkBox_channel_calibration)
+
+        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_18.addItem(self.horizontalSpacer_4)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_18)
+
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
         self.pushButton_LoadMode = QPushButton(self.groupBox_calibration)
@@ -504,31 +527,6 @@ class Ui_MainWindow(object):
 
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_11)
-
-        self.horizontalLayout_18 = QHBoxLayout()
-        self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
-        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_18.addItem(self.horizontalSpacer_3)
-
-        self.checkBox_addnoise = QCheckBox(self.groupBox_calibration)
-        self.checkBox_addnoise.setObjectName(u"checkBox_addnoise")
-        self.checkBox_addnoise.setLayoutDirection(Qt.RightToLeft)
-
-        self.horizontalLayout_18.addWidget(self.checkBox_addnoise)
-
-        self.checkBox_align_iq = QCheckBox(self.groupBox_calibration)
-        self.checkBox_align_iq.setObjectName(u"checkBox_align_iq")
-        self.checkBox_align_iq.setLayoutDirection(Qt.RightToLeft)
-
-        self.horizontalLayout_18.addWidget(self.checkBox_align_iq)
-
-        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_18.addItem(self.horizontalSpacer_4)
-
-
-        self.verticalLayout_5.addLayout(self.horizontalLayout_18)
 
 
         self.verticalLayout.addWidget(self.groupBox_calibration)
@@ -622,10 +620,10 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_4.addLayout(self.horizontalLayout_16)
 
-        self.pushButton_2 = QPushButton(self.groupBox_motor)
-        self.pushButton_2.setObjectName(u"pushButton_2")
+        self.pushButton_CircleTest = QPushButton(self.groupBox_motor)
+        self.pushButton_CircleTest.setObjectName(u"pushButton_CircleTest")
 
-        self.verticalLayout_4.addWidget(self.pushButton_2)
+        self.verticalLayout_4.addWidget(self.pushButton_CircleTest)
 
         self.horizontalLayout_12 = QHBoxLayout()
         self.horizontalLayout_12.setObjectName(u"horizontalLayout_12")
@@ -688,7 +686,7 @@ class Ui_MainWindow(object):
         self.pushButton_MotorDisconnect.clicked.connect(MainWindow.MotorDisconnect)
         self.pushButton_MoveAngel.clicked.connect(MainWindow.AngelMove)
         self.pushButton_Play.clicked.connect(MainWindow.PlayMatfile)
-        self.pushButton_2.clicked.connect(MainWindow.circleTest)
+        self.pushButton_CircleTest.clicked.connect(MainWindow.circleTest)
         self.pushButton_Disconnect.clicked.connect(MainWindow.UDP_disconnect)
         self.pushButton_Video_open.clicked.connect(MainWindow.VideoOpen)
         self.pushButton_video_close.clicked.connect(MainWindow.VideoClose)
@@ -728,13 +726,12 @@ class Ui_MainWindow(object):
         self.pushButton_video_close.setText(QCoreApplication.translate("MainWindow", u"Video Close", None))
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration", None))
-        self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Apply", None))
+        self.checkBox_addnoise.setText(QCoreApplication.translate("MainWindow", u"Noise", None))
         self.radioButton_FFT.setText(QCoreApplication.translate("MainWindow", u"FFT", None))
         self.radioButton_LS.setText(QCoreApplication.translate("MainWindow", u"LS", None))
         self.radioButton_WLS.setText(QCoreApplication.translate("MainWindow", u"WLS", None))
+        self.checkBox_channel_calibration.setText(QCoreApplication.translate("MainWindow", u"Calibration Matrix ", None))
         self.pushButton_LoadMode.setText(QCoreApplication.translate("MainWindow", u"Load Model", None))
-        self.checkBox_addnoise.setText(QCoreApplication.translate("MainWindow", u"Add Noise", None))
-        self.checkBox_align_iq.setText(QCoreApplication.translate("MainWindow", u"Align IQ", None))
         self.groupBox_File.setTitle(QCoreApplication.translate("MainWindow", u"Read Back", None))
         self.pushButton_ReadFile.setText(QCoreApplication.translate("MainWindow", u"Read File", None))
         self.pushButton_Play.setText(QCoreApplication.translate("MainWindow", u"Play", None))
@@ -744,7 +741,7 @@ class Ui_MainWindow(object):
         self.groupBox_motor.setTitle(QCoreApplication.translate("MainWindow", u"Motor Control", None))
         self.pushButton_MotorConnect.setText(QCoreApplication.translate("MainWindow", u"Motor Init", None))
         self.pushButton_MotorDisconnect.setText(QCoreApplication.translate("MainWindow", u"Motor Stop", None))
-        self.pushButton_2.setText(QCoreApplication.translate("MainWindow", u"Circle Test", None))
+        self.pushButton_CircleTest.setText(QCoreApplication.translate("MainWindow", u"Circle Test", None))
         self.pushButton_MoveAngel.setText(QCoreApplication.translate("MainWindow", u"Move", None))
     # retranslateUi
 

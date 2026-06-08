@@ -45,7 +45,7 @@ class MotorTestWorker(QThread):
         num_moves = 91
         currentAngel = -46.0
 
-        # 如果你需要每次重置 TestAngle，可以在这里初始化
+        #需要每次重置 TestAngle，可以在这里初始化
         TestAngle = -100.0
 
         results_data = []
@@ -154,7 +154,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
         #self.resize(1800, 1400)
         self.load_styles()
-        self.setup_distance_table()
+        self.setup_table()
         self.setupInitialUIState()
         self.tabWidget_Display.setMovable(True) #把widgets_tab设置为可移动转为dock
 
@@ -249,7 +249,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.MUSIC2dSpectrum_placeholders = {k: getattr(self, f'widget_{k}') for k in MUSICspectrum2d_keys}
         self.video_placeholders = {k: getattr(self, f'widget_{k}') for k in video_keys}
 
-    def setup_distance_table(self):
+    def setup_table(self):
         self.tableWidget_distance.setColumnCount(11)
         header_labels = ['index','FFT','FFT-fre', 'Macleod', 'Macleod-fre',
                           'Rife', 'Rife-fre', 'CTZ', 'CTZ-fre', 'MCTZ', 'MCTZ-fre']
@@ -268,7 +268,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
-
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
         self.pushButton_MoveAngel.setEnabled(False)
@@ -972,8 +971,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=5048899)
         else:
             iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
-        if self.checkBox_align_iq.isChecked():
-            iq = align_iq_virtual(iq)
 
         #距离计算函数，CZT采用时域变换
         R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod, diag = calculate_distance_from_iq(iq,r_bins=1,M=64,use_window=None,coherent=True)

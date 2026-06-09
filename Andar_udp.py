@@ -19,6 +19,15 @@ from udp_handler import *
 from display_pg import PgDisplay
 from WLS_Calibration import *
 from calibration_manager import CalibrationManager
+
+# ---- YOLO OBB 可选依赖检测 ----
+_YOLO_AVAILABLE = False
+try:
+    from ultralytics import YOLO
+    from yolo_obb_inference import YoloInferenceWorker
+    _YOLO_AVAILABLE = True
+except ImportError:
+    pass
 LISTEN_IP = "0.0.0.0"        # 监听所有网卡
 LISTEN_PORT = 8888           # 本地接收端口
 PEER_IP = "192.168.1.55"     # 雷达设备IP
@@ -150,6 +159,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+        self._setup_yolo_obb_ui()
         self.setWindowTitle("Radar UDP Interface ")
         self.setWindowIcon(QIcon(r'icon/Radar_UDP_icon.png'))
         #self.resize(1800, 1400)
@@ -214,7 +224,6 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 信号总线连接
         self.bus = Bus()
         self.bus.log.connect(self._log)
-
         # 创建菜单
         self.create_menus()
         self.upgrade_to_dockwidgets()
@@ -417,6 +426,94 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.UDP_disconnect()
         self.play_timer.stop()
         self.pushButton_Play.setText("Play")
+
+    # ==================================================================
+    #  YOLO OBB 可选功能
+    # ==================================================================
+
+    def _setup_yolo_obb_ui(self):
+        """初始化 YOLO OBB 复选框状态与连接（控件已在 .ui 中定义为 checkBox_yolo）。"""
+        self.checkBox_yolo.setToolTip(
+            "启用 YOLOv8 定向框检测角反射器（需要安装 ultralytics）")
+        self.checkBox_yolo.setEnabled(_YOLO_AVAILABLE)
+        if not _YOLO_AVAILABLE:
+            self.checkBox_yolo.setText("YOLO (ultralytics 未安装)")
+        self.checkBox_yolo.stateChanged.connect(self._on_yolo_obb_toggled)
+
+        # 模型路径（与 predict_webcam_obb.py 保持一致）
+        self._yolo_model_path = (r"best.pt")
+        self._yolo_worker: YoloInferenceWorker | None = None
+
+    def _on_yolo_obb_toggled(self, state: int):
+        """复选框勾选/取消时的处理。"""
+        if not state:
+            # 取消勾选 → 停止 YOLO 推理线程
+            self._stop_yolo_worker()
+            return
+
+        # 勾选 → 检测环境
+        if not _YOLO_AVAILABLE:
+            self.checkBox_yolo.blockSignals(True)
+            self.checkBox_yolo.setChecked(False)
+            self.checkBox_yolo.blockSignals(False)
+            QMessageBox.warning(
+                self, "YOLO 不可用",
+                "ultralytics / torch 未安装，无法启用 YOLO OBB 检测。\n"
+                "请执行: pip install ultralytics torch")
+            return
+
+        # 检查模型文件是否存在
+        if not os.path.exists(self._yolo_model_path):
+            self.checkBox_yolo.blockSignals(True)
+            self.checkBox_yolo.setChecked(False)
+            self.checkBox_yolo.blockSignals(False)
+            QMessageBox.warning(
+                self, "模型文件不存在",
+                f"YOLO 模型文件未找到:\n{self._yolo_model_path}\n"
+                f"请确保模型路径正确。")
+            return
+
+        # 如果摄像头已打开，启动推理线程
+        if (hasattr(self, 'video_cap') and self.video_cap is not None
+                and self.video_cap.isOpened()):
+            self._start_yolo_worker()
+
+    def _start_yolo_worker(self):
+        """启动 YOLO 推理线程。"""
+        if self._yolo_worker is not None:
+            return
+        try:
+            self._yolo_worker = YoloInferenceWorker(
+                self._yolo_model_path, conf_threshold=0.5, device=0)
+            self._yolo_worker.frame_ready.connect(self._on_yolo_frame_ready)
+            # 不连接 log 信号 → YOLO 内部日志不输出到 GUI
+            self._yolo_worker.start()
+        except Exception as e:
+            self._yolo_worker = None
+
+    def _stop_yolo_worker(self):
+        """安全停止 YOLO 推理线程。"""
+        if self._yolo_worker is not None:
+            self._yolo_worker.requestInterruption()
+            self._yolo_worker.quit()
+            self._yolo_worker.wait(3000)
+            self._yolo_worker = None
+
+    def _on_yolo_frame_ready(self, frame: np.ndarray):
+        """接收 YOLO 推理线程产出的标注帧，送 GUI 显示 + 写入视频。"""
+        self.display.update_video_frame('video', frame)
+        # 若正在录制，同步写入带 OBB 标注的帧
+        if hasattr(self, 'video_writer') and self.video_writer is not None:
+            try:
+                self.video_writer.write(frame)
+            except Exception:
+                pass
+
+    def _on_yolo_detection(self, det: dict):
+        """接收检测结果并输出到日志。"""
+        self.bus.log.emit(
+            f"[YOLO] 角反检测: 中心=({det['cx']}, {det['cy']}), "
+            f"置信度={det['conf']:.3f}")
 
     def SaveMatChange(self):
         """启用或关闭保存 .mat 文件功能"""
@@ -621,6 +718,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.video_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if self.video_cap.isOpened():
             self.bus.log.emit(f"✅ 已打开摄像头")
+            # 若 YOLO 复选框已勾选，自动启动推理线程
+            if (self.checkBox_yolo.isChecked()
+                    and _YOLO_AVAILABLE
+                    and os.path.exists(self._yolo_model_path)):
+                self._start_yolo_worker()
         else:
             self.bus.log.emit("⛔ 无法打开任何摄像头，请检查设备连接")
             self.video_cap = None
@@ -646,8 +748,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             return
         ret, frame = self.video_cap.read()
         if ret and frame is not None:
-            self.display.update_video_frame('video', frame)
-            # 若正在录制，同步写入视频文件
+            # YOLO OBB 推理线程正在运行 → 推送帧给它处理
+            if self._yolo_worker is not None and self._yolo_worker.isRunning():
+                self._yolo_worker.push_frame(frame)
+            else:
+                self.display.update_video_frame('video', frame)
+
+            # 若正在录制，同步写入视频文件（写入原始帧）
             if hasattr(self, 'video_writer') and self.video_writer is not None:
                 try:
                     self.video_writer.write(frame)
@@ -656,6 +763,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def VideoClose(self):
         """关闭摄像头并停止视频流"""
+        self._stop_yolo_worker()
+        self.checkBox_yolo.setChecked(False)
         self._finalize_video_writer()
         if hasattr(self, 'video_timer') and self.video_timer is not None:
             self.video_timer.stop()

@@ -34,78 +34,16 @@ class Ui_MainWindow(object):
         self.centralwidget.setLayoutDirection(Qt.LeftToRight)
         self.gridLayout = QGridLayout(self.centralwidget)
         self.gridLayout.setObjectName(u"gridLayout")
-        self.line_3 = QFrame(self.centralwidget)
-        self.line_3.setObjectName(u"line_3")
-        self.line_3.setFrameShape(QFrame.Shape.VLine)
-        self.line_3.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.gridLayout.addWidget(self.line_3, 2, 1, 1, 1)
-
-        self.tabWidget_Message = QTabWidget(self.centralwidget)
-        self.tabWidget_Message.setObjectName(u"tabWidget_Message")
+        self.tabWidget_Display = QTabWidget(self.centralwidget)
+        self.tabWidget_Display.setObjectName(u"tabWidget_Display")
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(12)
-        sizePolicy.setVerticalStretch(3)
-        sizePolicy.setHeightForWidth(self.tabWidget_Message.sizePolicy().hasHeightForWidth())
-        self.tabWidget_Message.setSizePolicy(sizePolicy)
+        sizePolicy.setVerticalStretch(10)
+        sizePolicy.setHeightForWidth(self.tabWidget_Display.sizePolicy().hasHeightForWidth())
+        self.tabWidget_Display.setSizePolicy(sizePolicy)
         font = QFont()
         font.setFamilies([u"Times New Roman"])
         font.setBold(True)
-        self.tabWidget_Message.setFont(font)
-        self.tab_log = QWidget()
-        self.tab_log.setObjectName(u"tab_log")
-        self.horizontalLayout = QHBoxLayout(self.tab_log)
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
-        self.textEdit_log = QTextEdit(self.tab_log)
-        self.textEdit_log.setObjectName(u"textEdit_log")
-
-        self.horizontalLayout.addWidget(self.textEdit_log)
-
-        self.tabWidget_Message.addTab(self.tab_log, "")
-        self.tab_Distance = QWidget()
-        self.tab_Distance.setObjectName(u"tab_Distance")
-        self.horizontalLayout_2 = QHBoxLayout(self.tab_Distance)
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.tableWidget_distance = QTableWidget(self.tab_Distance)
-        self.tableWidget_distance.setObjectName(u"tableWidget_distance")
-
-        self.horizontalLayout_2.addWidget(self.tableWidget_distance)
-
-        self.tabWidget_Message.addTab(self.tab_Distance, "")
-        self.tab_XYZpoint = QWidget()
-        self.tab_XYZpoint.setObjectName(u"tab_XYZpoint")
-        self.horizontalLayout_19 = QHBoxLayout(self.tab_XYZpoint)
-        self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
-        self.tableWidget_point = QTableWidget(self.tab_XYZpoint)
-        self.tableWidget_point.setObjectName(u"tableWidget_point")
-
-        self.horizontalLayout_19.addWidget(self.tableWidget_point)
-
-        self.tabWidget_Message.addTab(self.tab_XYZpoint, "")
-
-        self.gridLayout.addWidget(self.tabWidget_Message, 2, 0, 1, 1)
-
-        self.line = QFrame(self.centralwidget)
-        self.line.setObjectName(u"line")
-        self.line.setFrameShape(QFrame.Shape.HLine)
-        self.line.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.gridLayout.addWidget(self.line, 1, 0, 1, 1)
-
-        self.line_2 = QFrame(self.centralwidget)
-        self.line_2.setObjectName(u"line_2")
-        self.line_2.setFrameShape(QFrame.Shape.HLine)
-        self.line_2.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.gridLayout.addWidget(self.line_2, 1, 2, 1, 1)
-
-        self.tabWidget_Display = QTabWidget(self.centralwidget)
-        self.tabWidget_Display.setObjectName(u"tabWidget_Display")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        sizePolicy1.setHorizontalStretch(12)
-        sizePolicy1.setVerticalStretch(10)
-        sizePolicy1.setHeightForWidth(self.tabWidget_Display.sizePolicy().hasHeightForWidth())
-        self.tabWidget_Display.setSizePolicy(sizePolicy1)
         self.tabWidget_Display.setFont(font)
         self.tab_Placeholder = QWidget()
         self.tab_Placeholder.setObjectName(u"tab_Placeholder")
@@ -116,32 +54,32 @@ class Ui_MainWindow(object):
         self.gridLayout_2.setObjectName(u"gridLayout_2")
         self.widget_tx0rx1 = QWidget(self.tab_ADC)
         self.widget_tx0rx1.setObjectName(u"widget_tx0rx1")
-        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        sizePolicy2.setHorizontalStretch(0)
-        sizePolicy2.setVerticalStretch(0)
-        sizePolicy2.setHeightForWidth(self.widget_tx0rx1.sizePolicy().hasHeightForWidth())
-        self.widget_tx0rx1.setSizePolicy(sizePolicy2)
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.widget_tx0rx1.sizePolicy().hasHeightForWidth())
+        self.widget_tx0rx1.setSizePolicy(sizePolicy1)
 
         self.gridLayout_2.addWidget(self.widget_tx0rx1, 0, 1, 1, 1)
 
         self.widget_tx1rx0 = QWidget(self.tab_ADC)
         self.widget_tx1rx0.setObjectName(u"widget_tx1rx0")
-        sizePolicy2.setHeightForWidth(self.widget_tx1rx0.sizePolicy().hasHeightForWidth())
-        self.widget_tx1rx0.setSizePolicy(sizePolicy2)
+        sizePolicy1.setHeightForWidth(self.widget_tx1rx0.sizePolicy().hasHeightForWidth())
+        self.widget_tx1rx0.setSizePolicy(sizePolicy1)
 
         self.gridLayout_2.addWidget(self.widget_tx1rx0, 1, 0, 1, 1)
 
         self.widget_tx1rx1 = QWidget(self.tab_ADC)
         self.widget_tx1rx1.setObjectName(u"widget_tx1rx1")
-        sizePolicy2.setHeightForWidth(self.widget_tx1rx1.sizePolicy().hasHeightForWidth())
-        self.widget_tx1rx1.setSizePolicy(sizePolicy2)
+        sizePolicy1.setHeightForWidth(self.widget_tx1rx1.sizePolicy().hasHeightForWidth())
+        self.widget_tx1rx1.setSizePolicy(sizePolicy1)
 
         self.gridLayout_2.addWidget(self.widget_tx1rx1, 1, 1, 1, 1)
 
         self.widget_tx0rx0 = QWidget(self.tab_ADC)
         self.widget_tx0rx0.setObjectName(u"widget_tx0rx0")
-        sizePolicy2.setHeightForWidth(self.widget_tx0rx0.sizePolicy().hasHeightForWidth())
-        self.widget_tx0rx0.setSizePolicy(sizePolicy2)
+        sizePolicy1.setHeightForWidth(self.widget_tx0rx0.sizePolicy().hasHeightForWidth())
+        self.widget_tx0rx0.setSizePolicy(sizePolicy1)
 
         self.gridLayout_2.addWidget(self.widget_tx0rx0, 0, 0, 1, 1)
 
@@ -325,13 +263,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.tabWidget_Display, 0, 0, 1, 1)
 
-        self.line_4 = QFrame(self.centralwidget)
-        self.line_4.setObjectName(u"line_4")
-        self.line_4.setFrameShape(QFrame.Shape.VLine)
-        self.line_4.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.gridLayout.addWidget(self.line_4, 0, 1, 1, 1)
-
         self.widget_extra = QWidget(self.centralwidget)
         self.widget_extra.setObjectName(u"widget_extra")
         self.verticalLayout_10 = QVBoxLayout(self.widget_extra)
@@ -339,13 +270,34 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.widget_extra, 2, 2, 1, 1)
 
+        self.line = QFrame(self.centralwidget)
+        self.line.setObjectName(u"line")
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.gridLayout.addWidget(self.line, 1, 0, 1, 1)
+
+        self.line_3 = QFrame(self.centralwidget)
+        self.line_3.setObjectName(u"line_3")
+        self.line_3.setFrameShape(QFrame.Shape.VLine)
+        self.line_3.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.gridLayout.addWidget(self.line_3, 2, 1, 1, 1)
+
+        self.line_2 = QFrame(self.centralwidget)
+        self.line_2.setObjectName(u"line_2")
+        self.line_2.setFrameShape(QFrame.Shape.HLine)
+        self.line_2.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.gridLayout.addWidget(self.line_2, 1, 2, 1, 1)
+
         self.groupBox_Config = QGroupBox(self.centralwidget)
         self.groupBox_Config.setObjectName(u"groupBox_Config")
-        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        sizePolicy3.setHorizontalStretch(2)
-        sizePolicy3.setVerticalStretch(5)
-        sizePolicy3.setHeightForWidth(self.groupBox_Config.sizePolicy().hasHeightForWidth())
-        self.groupBox_Config.setSizePolicy(sizePolicy3)
+        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy2.setHorizontalStretch(2)
+        sizePolicy2.setVerticalStretch(5)
+        sizePolicy2.setHeightForWidth(self.groupBox_Config.sizePolicy().hasHeightForWidth())
+        self.groupBox_Config.setSizePolicy(sizePolicy2)
         self.groupBox_Config.setFont(font)
         self.verticalLayout = QVBoxLayout(self.groupBox_Config)
         self.verticalLayout.setObjectName(u"verticalLayout")
@@ -376,11 +328,11 @@ class Ui_MainWindow(object):
 
         self.checkBox_IsSave = QCheckBox(self.groupBox_UDP)
         self.checkBox_IsSave.setObjectName(u"checkBox_IsSave")
-        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        sizePolicy4.setHorizontalStretch(0)
-        sizePolicy4.setVerticalStretch(0)
-        sizePolicy4.setHeightForWidth(self.checkBox_IsSave.sizePolicy().hasHeightForWidth())
-        self.checkBox_IsSave.setSizePolicy(sizePolicy4)
+        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy3.setHorizontalStretch(0)
+        sizePolicy3.setVerticalStretch(0)
+        sizePolicy3.setHeightForWidth(self.checkBox_IsSave.sizePolicy().hasHeightForWidth())
+        self.checkBox_IsSave.setSizePolicy(sizePolicy3)
         self.checkBox_IsSave.setLayoutDirection(Qt.RightToLeft)
 
         self.horizontalLayout_5.addWidget(self.checkBox_IsSave)
@@ -391,8 +343,8 @@ class Ui_MainWindow(object):
 
         self.checkBox_HammingWindow = QCheckBox(self.groupBox_UDP)
         self.checkBox_HammingWindow.setObjectName(u"checkBox_HammingWindow")
-        sizePolicy4.setHeightForWidth(self.checkBox_HammingWindow.sizePolicy().hasHeightForWidth())
-        self.checkBox_HammingWindow.setSizePolicy(sizePolicy4)
+        sizePolicy3.setHeightForWidth(self.checkBox_HammingWindow.sizePolicy().hasHeightForWidth())
+        self.checkBox_HammingWindow.setSizePolicy(sizePolicy3)
         self.checkBox_HammingWindow.setLayoutDirection(Qt.RightToLeft)
 
         self.horizontalLayout_5.addWidget(self.checkBox_HammingWindow)
@@ -418,13 +370,27 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_20.addWidget(self.pushButton_Video_open)
 
-        self.pushButton_video_close = QPushButton(self.groupBox_video)
-        self.pushButton_video_close.setObjectName(u"pushButton_video_close")
+        self.checkBox_yolo = QCheckBox(self.groupBox_video)
+        self.checkBox_yolo.setObjectName(u"checkBox_yolo")
+        self.checkBox_yolo.setMinimumSize(QSize(0, 0))
+        self.checkBox_yolo.setMaximumSize(QSize(60, 16777215))
+        self.checkBox_yolo.setLayoutDirection(Qt.RightToLeft)
+        self.checkBox_yolo.setCheckable(True)
 
-        self.horizontalLayout_20.addWidget(self.pushButton_video_close)
+        self.horizontalLayout_20.addWidget(self.checkBox_yolo)
 
 
         self.verticalLayout_9.addLayout(self.horizontalLayout_20)
+
+        self.horizontalLayout_14 = QHBoxLayout()
+        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
+        self.pushButton_video_close = QPushButton(self.groupBox_video)
+        self.pushButton_video_close.setObjectName(u"pushButton_video_close")
+
+        self.horizontalLayout_14.addWidget(self.pushButton_video_close)
+
+
+        self.verticalLayout_9.addLayout(self.horizontalLayout_14)
 
 
         self.verticalLayout.addWidget(self.groupBox_video)
@@ -441,8 +407,8 @@ class Ui_MainWindow(object):
 
         self.checkBox_CalibrationMode = QCheckBox(self.groupBox_calibration)
         self.checkBox_CalibrationMode.setObjectName(u"checkBox_CalibrationMode")
-        sizePolicy4.setHeightForWidth(self.checkBox_CalibrationMode.sizePolicy().hasHeightForWidth())
-        self.checkBox_CalibrationMode.setSizePolicy(sizePolicy4)
+        sizePolicy3.setHeightForWidth(self.checkBox_CalibrationMode.sizePolicy().hasHeightForWidth())
+        self.checkBox_CalibrationMode.setSizePolicy(sizePolicy3)
         self.checkBox_CalibrationMode.setLayoutDirection(Qt.RightToLeft)
 
         self.horizontalLayout_9.addWidget(self.checkBox_CalibrationMode)
@@ -507,21 +473,21 @@ class Ui_MainWindow(object):
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
         self.pushButton_LoadMode = QPushButton(self.groupBox_calibration)
         self.pushButton_LoadMode.setObjectName(u"pushButton_LoadMode")
-        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        sizePolicy5.setHorizontalStretch(5)
-        sizePolicy5.setVerticalStretch(0)
-        sizePolicy5.setHeightForWidth(self.pushButton_LoadMode.sizePolicy().hasHeightForWidth())
-        self.pushButton_LoadMode.setSizePolicy(sizePolicy5)
+        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        sizePolicy4.setHorizontalStretch(5)
+        sizePolicy4.setVerticalStretch(0)
+        sizePolicy4.setHeightForWidth(self.pushButton_LoadMode.sizePolicy().hasHeightForWidth())
+        self.pushButton_LoadMode.setSizePolicy(sizePolicy4)
 
         self.horizontalLayout_11.addWidget(self.pushButton_LoadMode)
 
         self.lineEdit_ModeName = QLineEdit(self.groupBox_calibration)
         self.lineEdit_ModeName.setObjectName(u"lineEdit_ModeName")
-        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        sizePolicy6.setHorizontalStretch(5)
-        sizePolicy6.setVerticalStretch(0)
-        sizePolicy6.setHeightForWidth(self.lineEdit_ModeName.sizePolicy().hasHeightForWidth())
-        self.lineEdit_ModeName.setSizePolicy(sizePolicy6)
+        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy5.setHorizontalStretch(5)
+        sizePolicy5.setVerticalStretch(0)
+        sizePolicy5.setHeightForWidth(self.lineEdit_ModeName.sizePolicy().hasHeightForWidth())
+        self.lineEdit_ModeName.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_11.addWidget(self.lineEdit_ModeName)
 
@@ -539,8 +505,8 @@ class Ui_MainWindow(object):
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.pushButton_ReadFile = QPushButton(self.groupBox_File)
         self.pushButton_ReadFile.setObjectName(u"pushButton_ReadFile")
-        sizePolicy6.setHeightForWidth(self.pushButton_ReadFile.sizePolicy().hasHeightForWidth())
-        self.pushButton_ReadFile.setSizePolicy(sizePolicy6)
+        sizePolicy5.setHeightForWidth(self.pushButton_ReadFile.sizePolicy().hasHeightForWidth())
+        self.pushButton_ReadFile.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_4.addWidget(self.pushButton_ReadFile)
 
@@ -551,15 +517,15 @@ class Ui_MainWindow(object):
         self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
         self.pushButton_Play = QPushButton(self.groupBox_File)
         self.pushButton_Play.setObjectName(u"pushButton_Play")
-        sizePolicy6.setHeightForWidth(self.pushButton_Play.sizePolicy().hasHeightForWidth())
-        self.pushButton_Play.setSizePolicy(sizePolicy6)
+        sizePolicy5.setHeightForWidth(self.pushButton_Play.sizePolicy().hasHeightForWidth())
+        self.pushButton_Play.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_6.addWidget(self.pushButton_Play)
 
         self.pushButton_Next = QPushButton(self.groupBox_File)
         self.pushButton_Next.setObjectName(u"pushButton_Next")
-        sizePolicy6.setHeightForWidth(self.pushButton_Next.sizePolicy().hasHeightForWidth())
-        self.pushButton_Next.setSizePolicy(sizePolicy6)
+        sizePolicy5.setHeightForWidth(self.pushButton_Next.sizePolicy().hasHeightForWidth())
+        self.pushButton_Next.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_6.addWidget(self.pushButton_Next)
 
@@ -629,15 +595,15 @@ class Ui_MainWindow(object):
         self.horizontalLayout_12.setObjectName(u"horizontalLayout_12")
         self.lineEdit_MoveAngel = QLineEdit(self.groupBox_motor)
         self.lineEdit_MoveAngel.setObjectName(u"lineEdit_MoveAngel")
-        sizePolicy6.setHeightForWidth(self.lineEdit_MoveAngel.sizePolicy().hasHeightForWidth())
-        self.lineEdit_MoveAngel.setSizePolicy(sizePolicy6)
+        sizePolicy5.setHeightForWidth(self.lineEdit_MoveAngel.sizePolicy().hasHeightForWidth())
+        self.lineEdit_MoveAngel.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_12.addWidget(self.lineEdit_MoveAngel)
 
         self.pushButton_MoveAngel = QPushButton(self.groupBox_motor)
         self.pushButton_MoveAngel.setObjectName(u"pushButton_MoveAngel")
-        sizePolicy6.setHeightForWidth(self.pushButton_MoveAngel.sizePolicy().hasHeightForWidth())
-        self.pushButton_MoveAngel.setSizePolicy(sizePolicy6)
+        sizePolicy5.setHeightForWidth(self.pushButton_MoveAngel.sizePolicy().hasHeightForWidth())
+        self.pushButton_MoveAngel.setSizePolicy(sizePolicy5)
 
         self.horizontalLayout_12.addWidget(self.pushButton_MoveAngel)
 
@@ -657,6 +623,54 @@ class Ui_MainWindow(object):
 
 
         self.gridLayout.addWidget(self.groupBox_Config, 0, 2, 1, 1)
+
+        self.tabWidget_Message = QTabWidget(self.centralwidget)
+        self.tabWidget_Message.setObjectName(u"tabWidget_Message")
+        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy6.setHorizontalStretch(12)
+        sizePolicy6.setVerticalStretch(3)
+        sizePolicy6.setHeightForWidth(self.tabWidget_Message.sizePolicy().hasHeightForWidth())
+        self.tabWidget_Message.setSizePolicy(sizePolicy6)
+        self.tabWidget_Message.setFont(font)
+        self.tab_log = QWidget()
+        self.tab_log.setObjectName(u"tab_log")
+        self.horizontalLayout = QHBoxLayout(self.tab_log)
+        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.textEdit_log = QTextEdit(self.tab_log)
+        self.textEdit_log.setObjectName(u"textEdit_log")
+
+        self.horizontalLayout.addWidget(self.textEdit_log)
+
+        self.tabWidget_Message.addTab(self.tab_log, "")
+        self.tab_Distance = QWidget()
+        self.tab_Distance.setObjectName(u"tab_Distance")
+        self.horizontalLayout_2 = QHBoxLayout(self.tab_Distance)
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.tableWidget_distance = QTableWidget(self.tab_Distance)
+        self.tableWidget_distance.setObjectName(u"tableWidget_distance")
+
+        self.horizontalLayout_2.addWidget(self.tableWidget_distance)
+
+        self.tabWidget_Message.addTab(self.tab_Distance, "")
+        self.tab_XYZpoint = QWidget()
+        self.tab_XYZpoint.setObjectName(u"tab_XYZpoint")
+        self.horizontalLayout_19 = QHBoxLayout(self.tab_XYZpoint)
+        self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
+        self.tableWidget_point = QTableWidget(self.tab_XYZpoint)
+        self.tableWidget_point.setObjectName(u"tableWidget_point")
+
+        self.horizontalLayout_19.addWidget(self.tableWidget_point)
+
+        self.tabWidget_Message.addTab(self.tab_XYZpoint, "")
+
+        self.gridLayout.addWidget(self.tabWidget_Message, 2, 0, 1, 1)
+
+        self.line_4 = QFrame(self.centralwidget)
+        self.line_4.setObjectName(u"line_4")
+        self.line_4.setFrameShape(QFrame.Shape.VLine)
+        self.line_4.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.gridLayout.addWidget(self.line_4, 0, 1, 1, 1)
 
         MainWindow.setCentralWidget(self.centralwidget)
         self.tabWidget_Message.raise_()
@@ -691,8 +705,8 @@ class Ui_MainWindow(object):
         self.pushButton_Video_open.clicked.connect(MainWindow.VideoOpen)
         self.pushButton_video_close.clicked.connect(MainWindow.VideoClose)
 
-        self.tabWidget_Message.setCurrentIndex(0)
         self.tabWidget_Display.setCurrentIndex(1)
+        self.tabWidget_Message.setCurrentIndex(0)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -700,9 +714,6 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
-        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_log), QCoreApplication.translate("MainWindow", u"LogMessage", None))
-        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance ", None))
-        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_XYZpoint), QCoreApplication.translate("MainWindow", u"Point / Angle", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_Placeholder), QCoreApplication.translate("MainWindow", u"Placeholder", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_ADC), QCoreApplication.translate("MainWindow", u"ADC", None))
         self.tabWidget_Display.setTabText(self.tabWidget_Display.indexOf(self.tab_ConstellationDiagram), QCoreApplication.translate("MainWindow", u"StarChart", None))
@@ -723,6 +734,7 @@ class Ui_MainWindow(object):
         self.checkBox_HammingWindow.setText(QCoreApplication.translate("MainWindow", u"Hamming", None))
         self.groupBox_video.setTitle(QCoreApplication.translate("MainWindow", u"Camera", None))
         self.pushButton_Video_open.setText(QCoreApplication.translate("MainWindow", u"Video Open", None))
+        self.checkBox_yolo.setText(QCoreApplication.translate("MainWindow", u"YOLO", None))
         self.pushButton_video_close.setText(QCoreApplication.translate("MainWindow", u"Video Close", None))
         self.groupBox_calibration.setTitle(QCoreApplication.translate("MainWindow", u"Calibration", None))
         self.checkBox_CalibrationMode.setText(QCoreApplication.translate("MainWindow", u"Calibration", None))
@@ -743,5 +755,8 @@ class Ui_MainWindow(object):
         self.pushButton_MotorDisconnect.setText(QCoreApplication.translate("MainWindow", u"Motor Stop", None))
         self.pushButton_CircleTest.setText(QCoreApplication.translate("MainWindow", u"Circle Test", None))
         self.pushButton_MoveAngel.setText(QCoreApplication.translate("MainWindow", u"Move", None))
+        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_log), QCoreApplication.translate("MainWindow", u"LogMessage", None))
+        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_Distance), QCoreApplication.translate("MainWindow", u"Distance ", None))
+        self.tabWidget_Message.setTabText(self.tabWidget_Message.indexOf(self.tab_XYZpoint), QCoreApplication.translate("MainWindow", u"Point / Angle", None))
     # retranslateUi
 

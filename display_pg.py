@@ -7,6 +7,8 @@ from pyqtgraph import ImageView
 from pyqtgraph.opengl import GLViewWidget, GLMeshItem, GLAxisItem
 import pyqtgraph.opengl as gl
 import numpy as np
+from data_processing import (C, CenterFrequency, ADC_SAMPLE_RATE, FM,
+                             CHIRP_T0, CHIRP_PERIOD)
 from PySide6.QtGui import QPainterPath, QPen, QColor, QTransform, QFont
 from collections import deque
 from pyqtgraph.opengl.items.GLAxisItem import GLAxisItem
@@ -57,8 +59,8 @@ class PgDisplay:
         self.pg_MUSICspectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSICspectrum 图像
         self.pg_MUSIC2dSpectrum_dict: Dict[str, Dict[str, Any]] = {} # MUSIC2dSpectrum 图像
         self.pg_video_dict: Dict[str, Dict[str, Any]] = {} # Video 图像
-        self._colormap = self._build_jet_colormap()
-        #self._colormap = pg.colormap.get('jet')
+        self._colormap = self._build_matlab_jet_colormap()
+        self._rd_db_floor = -60.0
 
         self._init_adc(adc_placeholders)
         self._init_DirectWave(DirectWave_placeholders)
@@ -770,34 +772,74 @@ class PgDisplay:
 
     def update_fft2d(self, fft2d_results: np.ndarray, n_points: int, n_chirp: int):
         """
-        fft2d_results: shape (4, n_chirp, n_points)
-        显示 log10(|data|)，并将 range 轴截半
+        fft2d_results: shape (4, n_doppler, n_points)
+        以标准 Range-Doppler 图显示：X 轴为距离(m)，Y 轴为速度(m/s)。
+
+        n_chirp 是帧头中的物理 chirp 总数；TDM 重排后每个虚拟通道的
+        实际 Doppler 点数以 fft2d_results.shape[1] 为准。
         """
+        if fft2d_results.ndim != 3 or fft2d_results.shape[0] < 4:
+            raise ValueError("fft2d_results 必须为形状 (4, n_doppler, n_points) 的数组")
+
         # 这里的 keys 顺序要和 fft2d_results 的 axis 0 对应
         fft2d_keys = ['2DFFTtx0rx0', '2DFFTtx0rx1', '2DFFTtx1rx0', '2DFFTtx1rx1']
-        max_range_bin = n_points // 2
+        actual_n_points = fft2d_results.shape[2]
+        max_range_bin = actual_n_points // 2
+
+        # Range FFT：沿用 data_processing.py 中现有的拍频到距离换算口径。
+        fs_hz = ADC_SAMPLE_RATE * 1e6
+        chirp_ramp_s = CHIRP_T0 * 1e-6
+        bandwidth_hz = FM * 1e6
+        range_bin_size_m = (
+            C * (fs_hz / actual_n_points) * chirp_ramp_s / (2.0 * bandwidth_hz)
+        )
+
+        # 2T2R TDM：同一 TX-RX 虚拟通道每隔两个物理 chirp 采样一次。
+        n_doppler = fft2d_results.shape[1]
+        slow_time_s = 2.0 * CHIRP_PERIOD * 1e-6
+        wavelength_m = C / (CenterFrequency * 1e9)
+        doppler_freq_hz = np.fft.fftshift(np.fft.fftfreq(n_doppler, d=slow_time_s))
+        velocity_axis_mps = 0.5 * wavelength_m * doppler_freq_hz
+        velocity_bin_size_mps = wavelength_m / (2.0 * n_doppler * slow_time_s)
+
+        # QRectF 描述像素边界；让 FFT bin 的物理坐标落在像素中心。
+        x_min = -0.5 * range_bin_size_m
+        x_width = max_range_bin * range_bin_size_m
+        y_min = velocity_axis_mps[0] - 0.5 * velocity_bin_size_mps
+        y_height = n_doppler * velocity_bin_size_mps
+
+        # 四通道共用同一个参考峰值和动态范围，保证颜色可以直接比较。
+        rd_magnitude = np.abs(fft2d_results[:4, :, :max_range_bin])
+        global_peak = float(np.max(rd_magnitude))
+        if np.isfinite(global_peak) and global_peak > 0.0:
+            rd_display_db = 20.0 * np.log10(
+                np.maximum(rd_magnitude / global_peak, 1e-12)
+            )
+        else:
+            rd_display_db = np.full(rd_magnitude.shape, self._rd_db_floor, dtype=float)
 
         for ant_idx, key in enumerate(fft2d_keys):
             iv = self.pg_img_dict.get(key)
             if not isinstance(iv, ImageView):
                 continue
 
-            raw = fft2d_results[ant_idx, :, :]
-            display_data = np.log10(np.abs(raw[:, :max_range_bin]) + 1e-12)
+            display_data = rd_display_db[ant_idx]
 
-            iv.setImage(display_data, autoLevels=True)
+            # 明确指定：数组 axis 1 -> X(Range)，axis 0 -> Y(Velocity)。
+            iv.setImage(
+                display_data,
+                autoLevels=False,
+                axes={'x': 1, 'y': 0}
+            )
             iv.setColorMap(self._colormap)
+            iv.setLevels(self._rd_db_floor, 0.0)
 
-            # 坐标映射：X -> Doppler, Y -> Range
-            doppler_bins, range_bins = display_data.shape
-            x_min, x_max = -doppler_bins / 2, doppler_bins / 2
-            y_min, y_max = 0, range_bins
-            rect = QRectF(x_min, y_min, (x_max - x_min), (y_max - y_min))
+            rect = QRectF(x_min, y_min, x_width, y_height)
             iv.getImageItem().setRect(rect)
 
             view = iv.getView()
-            view.setLabel('bottom', 'Doppler Bin')
-            view.setLabel('left', 'Range Bin')
+            view.setLabel('bottom', 'Range', units='m')
+            view.setLabel('left', 'Velocity', units='m/s')
             view.setAspectLocked(False)
             view.invertY(False)
             view.autoRange()
@@ -1235,6 +1277,8 @@ class PgDisplay:
         for key, container in placeholders.items():
             layout = QVBoxLayout(container)
             iv = pg.ImageView(view=pg.PlotItem())
+            # RD 数据按 (Doppler, Range) 排列：行映射到 Y，列映射到 X。
+            iv.getImageItem().setOpts(axisOrder='row-major')
             iv.ui.menuBtn.hide()
             # 这里不使用内置 gradient，用统一 colormap
             layout.addWidget(iv)
@@ -1381,12 +1425,16 @@ class PgDisplay:
             items.append(text_item)
         return items
 
-    def _build_jet_colormap(self) -> pg.ColorMap:
-        # 色表（0-255的RGB）
-        pos = np.linspace(0.0, 1.0, 7)
+    def _build_matlab_jet_colormap(self) -> pg.ColorMap:
+        """返回 MATLAB Jet 风格色图：弱能量为蓝色，强能量为红色。"""
+        pos = np.linspace(0.0, 1.0, 6)
         colors = [
-            (0, 0, 131), (0, 0, 255), (0, 255, 255),
-            (255, 255, 0), (255, 0, 0), (128, 0, 0), (0, 0, 0)
+            (0, 0, 128),
+            (0, 0, 255),
+            (0, 255, 255),
+            (255, 255, 0),
+            (255, 64, 0),
+            (255, 0, 0),
         ]
         return pg.ColorMap(pos, colors)
 

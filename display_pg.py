@@ -1427,16 +1427,21 @@ class PgDisplay:
 
     def _build_matlab_jet_colormap(self) -> pg.ColorMap:
         """返回 MATLAB Jet 风格色图：弱能量为蓝色，强能量为红色。"""
-        pos = np.linspace(0.0, 1.0, 6)
-        colors = [
-            (0, 0, 128),
-            (0, 0, 255),
-            (0, 255, 255),
-            (255, 255, 0),
-            (255, 64, 0),
-            (255, 0, 0),
-        ]
-        return pg.ColorMap(pos, colors)
+        try:
+            # 直接使用 Matplotlib 的完整 Jet 色表（由 pyqtgraph 转成 ColorMap）。
+            return pg.colormap.get('jet', source='matplotlib')
+        except (ImportError, ModuleNotFoundError, ValueError):
+            # Matplotlib 不可用时保留一个可连续插值的兼容色表。
+            pos = np.linspace(0.0, 1.0, 6)
+            colors = [
+                (0, 0, 128),
+                (0, 0, 255),
+                (0, 255, 255),
+                (255, 255, 0),
+                (255, 64, 0),
+                (255, 0, 0),
+            ]
+            return pg.ColorMap(pos, colors)
 
     def _init_video(self, placeholders: Dict[str, QWidget]):
         for key, container in placeholders.items():

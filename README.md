@@ -20,11 +20,26 @@ This program is specially optimized for radar signal processing. With the high-p
 Core files of the project may include:
 
 - `Andar_udp.py`: Main program file, containing GUI and data processing logic.
-- `Radar_UDP.ui`: UI file designed with Qt Designer.
+- `Radar_UDP.ui`: UI source file designed with Qt Designer.
+- `UI/Ui_Radar_UDP.py`: Python UI code generated from `Radar_UDP.ui` by `pyside6-uic`.
 - `data_processing.py`: Mainly contains radar IQ data reorganization, 1D FFT, 2D FFT, etc.
 - `display_pg.py`: Mainly for GUI binding, initialization, and display calls.
 - `udp_handler.py`: UDP signal transmission and related work.
 - `raw_data.mat`: Radar raw data file saved by the program.
+
+### UI Development Workflow
+
+- Use Qt Designer to edit `Radar_UDP.ui`.
+- Do not manually edit `UI/Ui_Radar_UDP.py`; regenerating it will overwrite manual changes.
+- After saving the `.ui` file, regenerate the Python file with:
+
+```bash
+pyside6-uic Radar_UDP.ui -o UI/Ui_Radar_UDP.py
+```
+
+- Keep application logic in `Andar_udp.py` or other business modules, rather than in the generated UI file.
+- Signal-slot connections configured in Qt Designer are stored in `Radar_UDP.ui` and will be regenerated automatically. Do not duplicate those connections in application code.
+- If a widget's `objectName` is changed or the widget is removed in Qt Designer, update all corresponding references in the application code.
 
 ## How to Run
 
@@ -59,7 +74,7 @@ The program supports saving real-time data to `.mat` files. Each time the progra
 
 Packet length: 1024 bytes
 
-Data type: Big-endian
+Data type: Little-endian
 
 First Frame (1024 bytes):
 

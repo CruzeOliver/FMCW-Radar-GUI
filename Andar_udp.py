@@ -1,6 +1,6 @@
 from UI.Ui_Radar_UDP import Ui_MainWindow
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
-from PySide6.QtCore import QThread,QObject, Signal, Qt, QtMsgType, qInstallMessageHandler, QTimer
+from PySide6.QtCore import QThread,QObject, Signal, Slot, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
 import sys, socket, threading
 from scipy.io import loadmat
@@ -21,6 +21,7 @@ from WLS_Calibration import *
 from calibration_manager import CalibrationManager
 from radar_models import RadarFrame, RadarProcessingOptions
 from radar_processor import RadarProcessor
+from radar_worker import RadarWorker
 
 # ---- YOLO OBB 可选依赖检测 ----
 _YOLO_AVAILABLE = False
@@ -158,6 +159,8 @@ class UdpReceiver(threading.Thread):
 
 # ================== 主窗口初始化 ==================
 class MyMainForm(QMainWindow, Ui_MainWindow):
+    process_live_frame_requested = Signal(object, object, float, int)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
@@ -227,6 +230,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 信号总线连接
         self.bus = Bus()
         self.bus.log.connect(self._log)
+        # 实时雷达算法工作线程（MAT 回放仍在 GUI 主线程同步处理）
+        self.radar_worker_busy = False
+        self.live_session_id = 0
+        self._setup_radar_worker()
         # 创建菜单
         self.create_menus()
         self.upgrade_to_dockwidgets()
@@ -364,6 +371,103 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             calibration_method=calibration_method,
             apply_channel_calibration=self.checkBox_channel_calibration.isChecked(),
         )
+
+    def _setup_radar_worker(self):
+        """创建只负责实时帧算法计算的 Qt 工作线程。"""
+        self.radar_thread = QThread(self)
+        self.radar_worker = RadarWorker(self.radar_processor)
+        self.radar_worker.moveToThread(self.radar_thread)
+        self.radar_thread.finished.connect(self.radar_worker.deleteLater)
+
+        self.process_live_frame_requested.connect(
+            self.radar_worker.process_live_frame)
+        self.radar_worker.result_ready.connect(self._on_live_radar_result)
+        self.radar_worker.processing_error.connect(self._on_live_processing_error)
+        self.radar_worker.task_finished.connect(self._on_live_processing_finished)
+        self.radar_worker.calibration_complete.connect(
+            self._on_live_calibration_complete)
+        self.radar_worker.log_message.connect(self.bus.log.emit)
+        self.radar_worker.show_info.connect(self._show_worker_info)
+        self.radar_worker.show_warning.connect(self._show_worker_warning)
+
+        self.radar_thread.start()
+
+    @Slot(str, str)
+    def _show_worker_info(self, title, message):
+        QMessageBox.information(self, title, message)
+
+    @Slot(str, str)
+    def _show_worker_warning(self, title, message):
+        QMessageBox.warning(self, title, message)
+
+    @Slot(object, object, object, float, int)
+    def _on_live_radar_result(
+        self, result, radar_frame, options, submitted_at, session_id):
+        """在 GUI 主线程中显示实时算法线程返回的结果。"""
+        if session_id != self.live_session_id:
+            return
+        self.fft_results_1D = result.fft1d
+        self.fft_results_2D = result.fft2d
+        self.display.update_direct_wave_phases(result.direct_wave_phases)
+        self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
+
+        if submitted_at - self.last_display_time > self.display_interval:
+            self._update_basic_radar_plots(
+                result.display_iq,
+                radar_frame.chirp_count,
+                radar_frame.sample_count)
+            self.last_display_time = submitted_at
+
+        self.AZangelList.append(result.music_2d.peak_az)
+        self._update_music_1d_plot(result.music_1d)
+        self._update_music_2d_plot(result.music_2d)
+
+        if options.apply_channel_calibration:
+            point_distance = result.distance_czt_macleod
+        else:
+            point_distance = result.distance_fft
+        point_dict = self.display.update_point_cloud_polar(
+            "PointCloud",
+            point_distance,
+            90.0 - result.music_2d.peak_az,
+            size=10.0,
+            color='g',
+            show_all=False)
+
+        self._append_distance_result(
+            self.current_index,
+            result.distance_fft,
+            result.distance_macleod,
+            result.distance_rife,
+            result.distance_czt_fftpeak,
+            result.distance_czt_macleod,
+            result.distance_diagnostics)
+        self._append_point_result(
+            self.current_index, point_dict, point_dict['theta_deg'])
+        self.current_index += 1
+
+    @Slot(int, str, int)
+    def _on_live_processing_error(self, frame_id, message, session_id):
+        if session_id != self.live_session_id:
+            return
+        self.bus.log.emit(f"⛔ 帧 {frame_id} 处理失败: {message}")
+
+    @Slot(int)
+    def _on_live_processing_finished(self, session_id):
+        self.radar_worker_busy = False
+
+    @Slot(int)
+    def _on_live_calibration_complete(self, session_id):
+        if session_id == self.live_session_id:
+            self._on_calibration_complete()
+
+    def _shutdown_radar_worker(self):
+        """等待当前实时算法任务结束并关闭工作线程。"""
+        if not hasattr(self, 'radar_thread') or not self.radar_thread:
+            return
+        if self.radar_thread.isRunning():
+            self.radar_thread.quit()
+            self.radar_thread.wait()
 
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
@@ -664,6 +768,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     # ---- 断开：停止Timer + 两个线程 + 关socket ----
     def UDP_disconnect(self):
+        self.live_session_id += 1  # 使仍在计算的旧连接结果失效
         # 1. 停止 QTimer
         self.frame_consumer_timer.stop()
         # 2. 停止消费者线程 (assembler)
@@ -698,6 +803,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         if not self.frame_queue:
             return # 尚未连接
+        if self.radar_worker_busy:
+            return # 同一时间只允许一个实时雷达算法任务
         try:
             # 1. 从队列中非阻塞地获取一个项目
             item = self.frame_queue.get_nowait()
@@ -710,7 +817,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 3. 将完整帧元组转换为带字段名的数据对象（队列格式保持不变）
         radar_frame = RadarFrame.from_queue_item(item)
         options = self._build_processing_options()
-        # 4. --- 数据处理 ---
+        # 4. --- 保存原始数据并提交算法线程 ---
         try:
             # 保存到 .mat 文件
             if self.checkBox_IsSave.isChecked():
@@ -719,45 +826,11 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                     radar_frame.sample_count,
                     radar_frame.chirp_count)
 
-            current_time = time.time()
-            result = self.radar_processor.process_live_frame(radar_frame, options)
-            self.fft_results_1D = result.fft1d
-            self.fft_results_2D = result.fft2d
-            self.display.update_direct_wave_phases(result.direct_wave_phases)
-            self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
-
-            # 判断是否满足显示间隔
-            if current_time - self.last_display_time > self.display_interval:
-                self._update_basic_radar_plots(
-                    result.display_iq,
-                    radar_frame.chirp_count,
-                    radar_frame.sample_count)
-                self.last_display_time = current_time
-
-            self.AZangelList.append(result.music_2d.peak_az)
-            self._update_music_1d_plot(result.music_1d)
-            self._update_music_2d_plot(result.music_2d)
-            if options.apply_channel_calibration:
-                point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_czt_macleod, 90.0-result.music_2d.peak_az, size=10.0, color='g',show_all=False)
-            else:
-                point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_fft, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
-
-            # 更新表格显示距离计算结果
-            self._append_distance_result(
-                self.current_index,
-                result.distance_fft,
-                result.distance_macleod,
-                result.distance_rife,
-                result.distance_czt_fftpeak,
-                result.distance_czt_macleod,
-                result.distance_diagnostics)
-
-            #更新表格显示角度及点云计算结果
-            self._append_point_result(self.current_index, point_dict, point_dict['theta_deg'])
-            self.current_index += 1
-
+            self.radar_worker_busy = True
+            self.process_live_frame_requested.emit(
+                radar_frame, options, time.time(), self.live_session_id)
         except Exception as e:
-            # (重要) 捕捉处理过程中发生的任何错误，防止GUI崩溃
+            self.radar_worker_busy = False
             self.bus.log.emit(f"⛔ 帧 {radar_frame.frame_id} 处理失败: {e}")
 
 # ================== video视频相关内容 ==================
@@ -1301,6 +1374,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, e):
         self.UDP_disconnect()
+        self._shutdown_radar_worker()
         self.VideoClose()
         self._release_video_playback()
         super().closeEvent(e)

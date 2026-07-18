@@ -50,6 +50,25 @@ class CalibrationManager:
         self.phi_matrix: np.ndarray | None = None
         self.v_calibration: np.ndarray | None = None
 
+    def set_callbacks(self, on_complete=None, on_log=None,
+                      on_show_info=None, on_show_warning=None):
+        """更新通知回调并返回旧回调，不改变校准状态或计算流程。"""
+        previous = {
+            'on_complete': self._on_complete,
+            'on_log': self._on_log,
+            'on_show_info': self._on_show_info,
+            'on_show_warning': self._on_show_warning,
+        }
+        if on_complete is not None:
+            self._on_complete = on_complete
+        if on_log is not None:
+            self._on_log = on_log
+        if on_show_info is not None:
+            self._on_show_info = on_show_info
+        if on_show_warning is not None:
+            self._on_show_warning = on_show_warning
+        return previous
+
     # ==================================================================
     #  统一入口
     # ==================================================================

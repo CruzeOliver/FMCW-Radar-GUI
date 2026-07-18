@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+import numpy as np
+
 
 @dataclass(frozen=True)
 class RadarFrame:
@@ -35,3 +37,44 @@ class RadarProcessingOptions:
     calibration_mode_enabled: bool
     calibration_method: Optional[str]
     apply_channel_calibration: bool
+
+
+@dataclass
+class Music1DResult:
+    """MUSIC 一维方位角谱结果。"""
+
+    angles: np.ndarray
+    spectrum_db: np.ndarray
+    peak_az: float
+    peak_value: float
+    source_peak_el: float
+
+
+@dataclass
+class Music2DResult:
+    """MUSIC 二维方位角-俯仰角谱结果。"""
+
+    az_grid: np.ndarray
+    el_grid: np.ndarray
+    spectrum_db: np.ndarray
+    peak_az: float
+    peak_el: float
+
+
+@dataclass
+class RadarResult:
+    """单帧雷达算法处理完成后交给主窗口显示的结果。"""
+
+    raw_iq: np.ndarray
+    display_iq: np.ndarray
+    fft1d: np.ndarray
+    fft2d: np.ndarray
+    direct_wave_phases: np.ndarray
+    distance_fft: float
+    distance_macleod: float
+    distance_rife: float
+    distance_czt_fftpeak: float
+    distance_czt_macleod: float
+    distance_diagnostics: dict
+    music_1d: Music1DResult
+    music_2d: Music2DResult

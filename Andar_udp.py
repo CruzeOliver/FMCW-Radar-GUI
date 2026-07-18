@@ -20,6 +20,7 @@ from display_pg import PgDisplay
 from WLS_Calibration import *
 from calibration_manager import CalibrationManager
 from radar_models import RadarFrame, RadarProcessingOptions
+from radar_processor import RadarProcessor
 
 # ---- YOLO OBB 可选依赖检测 ----
 _YOLO_AVAILABLE = False
@@ -202,6 +203,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             on_show_info=lambda t, m: QMessageBox.information(self, t, m),
             on_show_warning=lambda t, m: QMessageBox.warning(self, t, m),
         )
+        self.radar_processor = RadarProcessor(self.calib_mgr)
         # display 控件相关变量 GUI显示界面绑定实例化
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.5
@@ -275,20 +277,33 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_point.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget_point.verticalHeader().setVisible(False)
 
-    def _update_basic_radar_plots(self, iq, chirp, sample, update_direct_wave=False):
+    def _update_basic_radar_plots(self, iq, chirp, sample, direct_wave_phases=None):
         """更新实时与回放共用的基础雷达图形。"""
         self.display.update_adc4(iq, chirp, sample)
-        if update_direct_wave:
-            self.display.update_direct_wave_phase(self.fft_results_1D, index=1)
+        if direct_wave_phases is not None:
+            self.display.update_direct_wave_phases(direct_wave_phases)
         self.display.update_constellations(iq, remove_dc=True, max_points=3000, show_fit=True)
         self.display.update_amp_phase(iq, chirp=0, decimate=1, unwrap_phase=False)
         self.display.update_fft1d(self.fft_results_1D, sample)
         self.display.update_fft2d(self.fft_results_2D, sample, chirp)
 
-    def _update_music_plots(self, az_grid, el_grid, spectrum_dB, peak_az, peak_el):
-        """更新一维与二维 MUSIC 谱图。"""
-        self.display.update_Azimuth_Spectrum(spectrum_dB, az_grid, el_grid, peak_az, peak_el)
-        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+    def _update_music_1d_plot(self, music_1d):
+        """更新独立的 MUSIC 一维方位角谱。"""
+        self.display.update_MUSIC1dSpectrum(
+            music_1d.angles,
+            music_1d.spectrum_db,
+            music_1d.peak_az,
+            music_1d.peak_value,
+            music_1d.source_peak_el)
+
+    def _update_music_2d_plot(self, music_2d):
+        """更新独立的 MUSIC 二维方位角-俯仰角谱。"""
+        self.display.update_MUSIC2dSpectrum(
+            music_2d.az_grid,
+            music_2d.el_grid,
+            music_2d.spectrum_db,
+            music_2d.peak_az,
+            music_2d.peak_el)
 
     def _append_distance_result(self, index, R_fft, R_macleod, R_Rife,
                                 R_czt_fftpeak, R_czt_macleod, diag):
@@ -705,59 +720,37 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                     radar_frame.chirp_count)
 
             current_time = time.time()
-            if options.use_hamming_window:
-                my_window = np.hamming(radar_frame.sample_count)
-            else:
-                my_window = None
-
-            iq = reorder_frame_TDMMIMO(
-                radar_frame.payload,
-                radar_frame.chirp_count,
-                radar_frame.sample_count,
-                radar_frame.txrx_type,
-                window=my_window)
-
-            # iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
-            self.fft_results_1D = Perform1D_FFT(iq)
-            self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
-            self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
-            R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
-            self.display.update_frequency(iq,diag)
-
-            if options.calibration_mode_enabled:
-                #得到2DFFT的峰值索引 对应的zij向量
-                peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
-                zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-                if options.calibration_method:
-                    self.calib_mgr.calibrate(
-                        options.calibration_method, zij_vector=zij_vector,
-                        fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
-                        iq_data=iq)
-
-            # 根据2dfft结果 将TX和RX 进行分开幅相校准
-            if options.apply_channel_calibration and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
-                iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
-                self.fft_results_1D = Perform1D_FFT(iq)
-                self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
+            result = self.radar_processor.process_live_frame(radar_frame, options)
+            self.fft_results_1D = result.fft1d
+            self.fft_results_2D = result.fft2d
+            self.display.update_direct_wave_phases(result.direct_wave_phases)
+            self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
 
             # 判断是否满足显示间隔
             if current_time - self.last_display_time > self.display_interval:
                 self._update_basic_radar_plots(
-                    iq, radar_frame.chirp_count, radar_frame.sample_count)
+                    result.display_iq,
+                    radar_frame.chirp_count,
+                    radar_frame.sample_count)
                 self.last_display_time = current_time
 
-            az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
-            self.AZangelList.append(peak_az)
-            self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+            self.AZangelList.append(result.music_2d.peak_az)
+            self._update_music_1d_plot(result.music_1d)
+            self._update_music_2d_plot(result.music_2d)
             if options.apply_channel_calibration:
-                point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g',show_all=False)
+                point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_czt_macleod, 90.0-result.music_2d.peak_az, size=10.0, color='g',show_all=False)
             else:
-                point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
+                point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_fft, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
 
             # 更新表格显示距离计算结果
             self._append_distance_result(
-                self.current_index, R_fft, R_macleod, R_Rife,
-                R_czt_fftpeak, R_czt_macleod, diag)
+                self.current_index,
+                result.distance_fft,
+                result.distance_macleod,
+                result.distance_rife,
+                result.distance_czt_fftpeak,
+                result.distance_czt_macleod,
+                result.distance_diagnostics)
 
             #更新表格显示角度及点云计算结果
             self._append_point_result(self.current_index, point_dict, point_dict['theta_deg'])
@@ -1129,58 +1122,35 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         #  处理数据并更新显示
         frame_data_flat = frame_data.flatten()
-        if options.use_hamming_window:
-            my_window = np.hamming(sample)
-        else:
-            my_window = None
-        if options.add_simulated_noise:
-            iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=5048899)
-        else:
-            iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
+        result = self.radar_processor.process_playback_frame(
+            frame_data_flat, sample, chirp, options)
+        self.fft_results_1D = result.fft1d
+        self.fft_results_2D = result.fft2d
+        self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
+        self._update_basic_radar_plots(
+            result.display_iq,
+            chirp,
+            sample,
+            direct_wave_phases=result.direct_wave_phases)
 
-        #距离计算函数，CZT采用时域变换
-        R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod, diag = calculate_distance_from_iq(iq,r_bins=1,M=64,use_window=None,coherent=True)
-        self.display.update_frequency(iq,diag)
-        self.fft_results_1D = Perform1D_FFT(iq)
-        self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
-
-        if options.calibration_mode_enabled:
-            #得到2DFFT的峰值索引 对应的zij向量
-            peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
-            zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-            if options.calibration_method:
-                self.calib_mgr.calibrate(
-                    options.calibration_method, zij_vector=zij_vector,
-                    fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
-                    iq_data=iq)
-
-        # 根据2dfft结果 将TX和RX 进行分开幅相校准
-        if options.apply_channel_calibration and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
-            # 将校准后的IQ数据赋值给一个新的变量
-            calibrated_iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
-            #对新的IQ数据 重新计算FFT
-            self.fft_results_1D = Perform1D_FFT(calibrated_iq)
-            self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
-        else:
-            # 如果不校准，则直接使用原始iq数据
-            calibrated_iq = iq
-
-        #此时的calibrated_iq已经经过了校准（如果选中了校准），如果没有校准，则还是原始iq数据，后续显示和距离计算都使用这个数据
-        self._update_basic_radar_plots(calibrated_iq, chirp, sample, update_direct_wave=True)
-
-        az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
-        self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+        self._update_music_1d_plot(result.music_1d)
+        self._update_music_2d_plot(result.music_2d)
         if options.apply_channel_calibration:
-            point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g', show_all=False)
+            point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_macleod, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
         else:
-            point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
+            point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_fft, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
         # 更新表格显示距离计算结果
         self._append_distance_result(
-            self.current_index, R_fft, R_macleod, R_Rife,
-            R_czt_fftpeak, R_czt_macleod, diag)
+            self.current_index,
+            result.distance_fft,
+            result.distance_macleod,
+            result.distance_rife,
+            result.distance_czt_fftpeak,
+            result.distance_czt_macleod,
+            result.distance_diagnostics)
 
         #更新表格显示角度及点云计算结果
-        self._append_point_result(self.current_index, point_dict, peak_az)
+        self._append_point_result(self.current_index, point_dict, result.music_2d.peak_az)
 
         # ---------- 视频帧同步（回放模式） ----------
         if self.video_playback_cap is not None and self.total_video_frames > 0:

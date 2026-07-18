@@ -103,13 +103,13 @@ class PgDisplay:
             h['Q'].setData(t, Q)
             h['pw'].setXRange(0, sample, padding=0.02)
 
-    def update_direct_wave_phase(self, fft_results: np.ndarray,index):
+    def update_direct_wave_phases(self, phases: np.ndarray):
         """
-        自动更新所有通道的直达波相位监控图（无需传入 frame_idx）
+        使用 RadarProcessor 已提取的四通道相位更新直达波监控图。
         通过限制历史数据长度和强制设置 X 轴范围来实现平滑滚动。
 
         参数：
-            fft_results (np.ndarray): 1D-FFT 结果，shape = (4, n_chirp, n_sample)
+            phases (np.ndarray): 四通道直达波相位，shape = (4,)
         """
         MAX_HISTORY_LEN = 100
         REF_KEY = 'DWtx0rx0' # 参考通道键
@@ -119,14 +119,9 @@ class PgDisplay:
         if not hasattr(self, '_direct_wave_frame_count'):
             self._direct_wave_frame_count = 0
 
-        if fft_results.ndim != 3 or fft_results.shape[0] != 4:
-            raise ValueError("fft_results must be shape (4, n_chirp, n_sample)")
-
-        bin_index = index  # 直达波所在距离单元
-
-        # --- 提取 bin=1 并对 chirp 求平均 → 复数信号 ---
-        S_bin1 = np.mean(fft_results[:, :, bin_index], axis=1)  # shape: (4,)
-        phases = np.angle(S_bin1)  # 提取相位（弧度制）
+        phases = np.asarray(phases)
+        if phases.shape != (4,):
+            raise ValueError("phases must be shape (4,)")
 
         # --- 通道映射 ---
         DirectWave_keys = ['DWtx0rx0', 'DWtx0rx1', 'DWtx1rx0', 'DWtx1rx1']
@@ -844,60 +839,39 @@ class PgDisplay:
             view.invertY(False)
             view.autoRange()
 
-    def update_Azimuth_Spectrum(self,
-                            spectrum_dB_2d: np.ndarray,
-                            AZ_grid: np.ndarray,
-                            EL_grid: np.ndarray,
-                            peak_az: float,
-                            peak_el: float):
+    def update_MUSIC1dSpectrum(self,
+                               angles: np.ndarray,
+                               spectrum_dB: np.ndarray,
+                               peak_az: float,
+                               peak_value: float,
+                               source_peak_el: float):
         """
-        更新 MUSIC 角度谱图（Azimuth 1D 谱线）。
-
-        功能：根据 2D 谱和峰值俯仰角，提取对应的 1D Azimuth 谱线进行显示。
+        更新已经由 RadarProcessor 独立整理好的 MUSIC 一维方位角谱。
 
         参数:
-            spectrum_dB_2d (np.ndarray): 2D MUSIC 谱 (dB)。
-            AZ_grid (np.ndarray): Azimuth 角度网格。
-            EL_grid (np.ndarray): Elevation 角度网格。
-            peak_az (float): 估计的 Azimuth 峰值。
-            peak_el (float): 估计的 Elevation 峰值 (用于定位切片)。
+            angles: 方位角坐标。
+            spectrum_dB: 一维 MUSIC 谱 (dB)。
+            peak_az: 方位角峰值。
+            peak_value: 峰值位置的谱值。
+            source_peak_el: 生成该谱线时对应的俯仰角。
         """
-        if spectrum_dB_2d.size == 0:
+        if spectrum_dB.size == 0:
             # 如果没有数据，清空图表并退出
             for h in self.pg_plot_dict.values():
                 if 'MUSIC' in h:
                     h['MUSIC'].setData([], [])
             return
-        # -----------------------------------------------------
-        # 1. 提取 1D Azimuth 谱线 (新逻辑)
-        # -----------------------------------------------------
-        # 1a. 找到最接近峰值俯仰角 (peak_el) 的行索引
-        el_angles = EL_grid[:, 0]
-        peak_el_idx = np.argmin(np.abs(el_angles - peak_el))
-        # 1b. 提取 Azimuth 角度作为 X 轴 (angles)
-        azimuth_angles = AZ_grid[0, :]
-        # 1c. 提取对应峰值俯仰角处的 Azimuth 谱 (spectrum_dB)
-        azimuth_spectrum_1d = spectrum_dB_2d[peak_el_idx, :]
-        # 1d. 找到 1D 谱线中，对应 peak_az 位置的 dB 值（用于标记 Y 坐标）
-        peak_idx = np.argmin(np.abs(azimuth_angles - peak_az))
-        peak_value = azimuth_spectrum_1d[peak_idx]
-        # -----------------------------------------------------
-        # 2. 遍历并更新所有 MUSIC 谱图 (绘图逻辑不变)
-        # -----------------------------------------------------
+
         for key, h in self.pg_plot_dict.items():
             if 'MUSIC' not in h:
                 continue
             pw = h['pw']
-            # 2.1. 更新主谱图曲线
             music_curve = h['MUSIC']
-            music_curve.setData(azimuth_angles, azimuth_spectrum_1d) # 使用提取出的 1D 数据
-            # 2.2. 强制设置 X 轴范围和 Y 轴自动缩放
+            music_curve.setData(angles, spectrum_dB)
             pw.setXRange(-90, 90, padding=0.01)
             pw.enableAutoRange(y=True)
-            # 2.3. 更新标题
-            pw.setTitle(f" {key} | Peak Azimuth: {peak_az:.2f}° (at El={peak_el:.2f}°)",
+            pw.setTitle(f" {key} | Peak Azimuth: {peak_az:.2f}° (at El={source_peak_el:.2f}°)",
                         color='k', size='12pt')
-            # 2.4. 标记峰值点
             if 'peak_point' not in h:
                 h['peak_point'] = pw.plot(
                     pen=None,
@@ -906,7 +880,6 @@ class PgDisplay:
                     symbolBrush=(255, 0, 0),
                     name='Peak'
                 )
-            # 更新峰值标记的位置
             h['peak_point'].setData([peak_az], [peak_value])
 
     def update_MUSIC2dSpectrum(self,

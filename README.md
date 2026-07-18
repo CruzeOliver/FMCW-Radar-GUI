@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This project is a Python-based desktop application for real-time acquisition (data transmission via UDP), processing, and visualization of radar data. It uses `PyQt` to build the user interface and `PyQtGraph` for efficient graphical display. Main features include:
+This project is a Python-based desktop application for real-time acquisition (data transmission via UDP), processing, and visualization of radar data. It uses `PySide6` to build the user interface and `PyQtGraph` for efficient graphical display. Main features include:
 
 - Real-time display of raw ADC data from four virtual antennas.
 - Real-time display of constellation diagrams for four virtual antennas.
@@ -17,15 +17,51 @@ This program is specially optimized for radar signal processing. With the high-p
 
 ## Project Structure
 
-Core files of the project may include:
+### Main Application
 
-- `Andar_udp.py`: Main program file, containing GUI and data processing logic.
-- `Radar_UDP.ui`: UI source file designed with Qt Designer.
-- `UI/Ui_Radar_UDP.py`: Python UI code generated from `Radar_UDP.ui` by `pyside6-uic`.
-- `data_processing.py`: Mainly contains radar IQ data reorganization, 1D FFT, 2D FFT, etc.
-- `display_pg.py`: Mainly for GUI binding, initialization, and display calls.
-- `udp_handler.py`: UDP signal transmission and related work.
-- `raw_data.mat`: Radar raw data file saved by the program.
+- `Andar_udp.py`: Application entry point and main-window controller. It manages UI events, UDP lifecycle, MAT recording and playback, camera/video, result presentation, and worker-thread coordination. Radar algorithms are not implemented directly in this file.
+- `Radar_UDP.ui`: UI source file maintained with Qt Designer.
+- `UI/Ui_Radar_UDP.py`: Generated Python UI code. It is recreated from `Radar_UDP.ui` with `pyside6-uic` and should not be edited manually.
+- `display_pg.py`: PyQtGraph view initialization and rendering. It displays ADC, FFT, direct-wave phase, constellation, MUSIC spectra, point cloud, frequency results, and video frames; it does not run the main radar processing pipeline.
+
+### Radar Processing
+
+- `radar_models.py`: Named data models shared by the GUI, processor, and worker, including complete radar frames, processing-option snapshots, distance/MUSIC results, and the complete per-frame result.
+- `radar_processor.py`: Single-frame processing pipeline for both live UDP data and MAT playback. It organizes IQ reordering, FFT, ranging, direct-wave phase extraction, channel calibration, and MUSIC 1D/2D processing without accessing GUI widgets.
+- `data_processing.py`: Core radar signal-processing functions, including 1D/2D FFT, precise ranging algorithms, compensation utilities, and MUSIC spectrum estimation.
+- `WLS_Calibration.py`: Mathematical implementations for LS/WLS amplitude and phase calibration, weighting, noise estimation, and channel compensation.
+- `calibration_manager.py`: Calibration state machine. It manages warm-up frames, valid-frame collection, matrix calculation, calibration-file output, loaded matrices, and notification callbacks.
+
+### Communication and Concurrency
+
+- `udp_handler.py`: UDP frame protocol parsing, complete-frame assembly, timeout/incomplete-frame handling, and TDM-MIMO IQ reordering functions. The current protocol uses little-endian fields and fixed 1024-byte packets.
+- `radar_worker.py`: Qt worker object that serially runs live and playback processing in a dedicated `QThread`. Results, errors, logs, and calibration notifications are returned to the GUI through Qt signals.
+
+### Optional Hardware and Vision
+
+- `motorController.py`: CH375-based turntable motor connection, initialization, movement, and stop control. This module is independent of the radar algorithm worker.
+- `yolo_obb_inference.py`: Optional YOLO OBB inference worker for camera-based corner-reflector detection. It keeps only the latest image frame to limit inference latency.
+
+### Runtime Data
+
+- `*.mat`: Recorded radar frames and their existing `data`, `sample`, and `chirp` fields.
+- `*.avi`: Optional video recorded alongside radar data and matched by filename during playback.
+- `*.npz`: Saved or loaded channel-calibration matrices.
+
+### Processing Workflow
+
+```text
+Radar device
+  -> UDP receiver thread
+  -> raw packet queue
+  -> frame assembler thread
+  -> complete frame queue
+  -> RadarWorker (RadarProcessor)
+  -> RadarResult
+  -> GUI thread: plots, tables, video synchronization
+```
+
+Both live data and MAT playback use the same `RadarProcessor`. They retain their original mode-specific ranging parameters and point-cloud distance choices. All Qt widget and PyQtGraph updates remain in the GUI thread.
 
 ### UI Development Workflow
 
@@ -48,13 +84,21 @@ pyside6-uic Radar_UDP.ui -o UI/Ui_Radar_UDP.py
 Before running the project, please make sure you have installed all necessary Python libraries. You can use `pip` to install them:
 
 ```bash
-pip install PyQt5 pyqtgraph numpy scipy
+pip install PySide6 pyqtgraph numpy scipy opencv-python PyOpenGL
 ```
 
-- **`PyQt5`**: For building the graphical user interface.
+- **`PySide6`**: For building the graphical user interface and Qt worker threads.
 - **`pyqtgraph`**: For high-performance scientific plotting.
 - **`numpy`**: For numerical array processing.
 - **`scipy`**: For loading and saving `.mat` files.
+- **`opencv-python`**: For camera capture, video recording, and synchronized playback.
+- **`PyOpenGL`**: For PyQtGraph OpenGL views.
+
+YOLO OBB detection is optional. Install it only when that feature is required:
+
+```bash
+pip install ultralytics
+```
 
 ### 2. Run the Program
 
@@ -66,7 +110,7 @@ python Andar_udp.py
 
 ### 3. Data Saving
 
-The program supports saving real-time data to `.mat` files. Each time the program starts, it automatically generates a `.mat` file named with the current timestamp, such as `2025_08_20_14_30_00_raw_data_py.mat`, and all processed frame data will be appended to this file.
+The program supports saving real-time data to `.mat` files. When data saving is enabled, it generates a timestamped filename such as `2025_08_20_14_30_00_raw_data_py.mat`. The existing MAT frame structure and batch-saving behavior are preserved for compatibility with recorded research data.
 
 ## Main Features
 

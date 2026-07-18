@@ -283,7 +283,8 @@ class CalibrationManager:
     # ==================================================================
 
     def _calibrate_fft(self, iq_virtual_data: np.ndarray):
-        """[V4 - 采用"忽略N, 平均M"的新逻辑]
+        """使用“忽略 N、平均 M”的 FFT 峰值校准流程。
+
         接收 (4, N_obs, N_samples) 的 IQ 数据，预热 20 帧后收集 50 帧进行校准。
         """
         calib_peak_bin = None  # 用于锁定峰值 Bin 的变量

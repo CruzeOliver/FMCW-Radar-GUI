@@ -19,6 +19,7 @@ from udp_handler import *
 from display_pg import PgDisplay
 from WLS_Calibration import *
 from calibration_manager import CalibrationManager
+from radar_models import RadarFrame, RadarProcessingOptions
 
 # ---- YOLO OBB 可选依赖检测 ----
 _YOLO_AVAILABLE = False
@@ -329,6 +330,25 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             item.setTextAlignment(Qt.AlignCenter)
             self.tableWidget_point.setItem(row_count, column, item)
         self.tableWidget_point.scrollToBottom()
+
+    def _build_processing_options(self):
+        """读取一次 GUI 控件，生成当前帧使用的处理选项快照。"""
+        if self.radioButton_WLS.isChecked():
+            calibration_method = 'WLS'
+        elif self.radioButton_FFT.isChecked():
+            calibration_method = 'FFT'
+        elif self.radioButton_LS.isChecked():
+            calibration_method = 'LS'
+        else:
+            calibration_method = None
+
+        return RadarProcessingOptions(
+            use_hamming_window=self.checkBox_HammingWindow.isChecked(),
+            add_simulated_noise=self.checkBox_addnoise.isChecked(),
+            calibration_mode_enabled=self.checkBox_CalibrationMode.isChecked(),
+            calibration_method=calibration_method,
+            apply_channel_calibration=self.checkBox_channel_calibration.isChecked(),
+        )
 
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
@@ -672,21 +692,30 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         if isinstance(item, tuple) and item and item[0] == '__error__':
             self.bus.log.emit(f"{item[1]}") # 将线程中的日志转发到GUI
             return
-        # 3. 解包数据 (这现在匹配了 on_frame_ready 的参数)
-        fid, frame, sample, chirp, txrx = item
+        # 3. 将完整帧元组转换为带字段名的数据对象（队列格式保持不变）
+        radar_frame = RadarFrame.from_queue_item(item)
+        options = self._build_processing_options()
         # 4. --- 数据处理 ---
         try:
             # 保存到 .mat 文件
             if self.checkBox_IsSave.isChecked():
-                self.save_to_buffer(frame,sample,chirp)
+                self.save_to_buffer(
+                    radar_frame.payload,
+                    radar_frame.sample_count,
+                    radar_frame.chirp_count)
 
             current_time = time.time()
-            if self.checkBox_HammingWindow.isChecked():
-                my_window = np.hamming(sample)
+            if options.use_hamming_window:
+                my_window = np.hamming(radar_frame.sample_count)
             else:
                 my_window = None
 
-            iq = reorder_frame_TDMMIMO(frame, chirp, sample, txrx, window=my_window)
+            iq = reorder_frame_TDMMIMO(
+                radar_frame.payload,
+                radar_frame.chirp_count,
+                radar_frame.sample_count,
+                radar_frame.txrx_type,
+                window=my_window)
 
             # iq = reorder_frame_TDMMIMO2(frame, chirp, sample, txrx, window=my_window)
             self.fft_results_1D = Perform1D_FFT(iq)
@@ -695,39 +724,32 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             R_fft, R_macleod, R_Rife, R_czt_fftpeak, R_czt_macleod,diag = calculate_distance_from_iq(iq,r_bins=0.5,M=16,use_window=None,coherent=True)
             self.display.update_frequency(iq,diag)
 
-            if self.checkBox_CalibrationMode.isChecked():
+            if options.calibration_mode_enabled:
                 #得到2DFFT的峰值索引 对应的zij向量
                 peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
                 zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-                if self.radioButton_WLS.isChecked():
-                    mode = 'WLS'
-                elif self.radioButton_FFT.isChecked():
-                    mode = 'FFT'
-                elif self.radioButton_LS.isChecked():
-                    mode = 'LS'
-                else:
-                    mode = None
-                if mode:
+                if options.calibration_method:
                     self.calib_mgr.calibrate(
-                        mode, zij_vector=zij_vector,
+                        options.calibration_method, zij_vector=zij_vector,
                         fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
                         iq_data=iq)
 
             # 根据2dfft结果 将TX和RX 进行分开幅相校准
-            if self.checkBox_channel_calibration.isChecked() and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
+            if options.apply_channel_calibration and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
                 iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
                 self.fft_results_1D = Perform1D_FFT(iq)
                 self.fft_results_2D = Perform2D_FFT(self.fft_results_1D)
 
             # 判断是否满足显示间隔
             if current_time - self.last_display_time > self.display_interval:
-                self._update_basic_radar_plots(iq, chirp, sample)
+                self._update_basic_radar_plots(
+                    iq, radar_frame.chirp_count, radar_frame.sample_count)
                 self.last_display_time = current_time
 
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
             self.AZangelList.append(peak_az)
             self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-            if self.checkBox_channel_calibration.isChecked():
+            if options.apply_channel_calibration:
                 point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g',show_all=False)
             else:
                 point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
@@ -743,7 +765,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         except Exception as e:
             # (重要) 捕捉处理过程中发生的任何错误，防止GUI崩溃
-            self.bus.log.emit(f"⛔ 帧 {fid} 处理失败: {e}")
+            self.bus.log.emit(f"⛔ 帧 {radar_frame.frame_id} 处理失败: {e}")
 
 # ================== video视频相关内容 ==================
     def VideoOpen(self):
@@ -1103,13 +1125,15 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.bus.log.emit(f"⛔ 读取帧结构失败: {e}。数据可能已损坏或格式陈旧。")
             return
 
+        options = self._build_processing_options()
+
         #  处理数据并更新显示
         frame_data_flat = frame_data.flatten()
-        if self.checkBox_HammingWindow.isChecked():
+        if options.use_hamming_window:
             my_window = np.hamming(sample)
         else:
             my_window = None
-        if self.checkBox_addnoise.isChecked():
+        if options.add_simulated_noise:
             iq = reorder_frame_TDMMIMO_with_noise(frame_data_flat, chirp, sample, 4, window=my_window,sim_noise_ch=3,sim_noise_level=5048899)
         else:
             iq = reorder_frame_TDMMIMO(frame_data_flat, chirp, sample, 4, window=my_window)
@@ -1120,26 +1144,18 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.fft_results_1D = Perform1D_FFT(iq)
         self.fft_results_2D  = Perform2D_FFT(self.fft_results_1D)
 
-        if self.checkBox_CalibrationMode.isChecked():
+        if options.calibration_mode_enabled:
             #得到2DFFT的峰值索引 对应的zij向量
             peak_idx = np.unravel_index(np.argmax(np.abs(self.fft_results_2D[0])), self.fft_results_2D[0].shape)
             zij_vector = self.fft_results_2D[:, peak_idx[0], peak_idx[1]]
-            if self.radioButton_WLS.isChecked():
-                mode = 'WLS'
-            elif self.radioButton_FFT.isChecked():
-                mode = 'FFT'
-            elif self.radioButton_LS.isChecked():
-                mode = 'LS'
-            else:
-                mode = None
-            if mode:
+            if options.calibration_method:
                 self.calib_mgr.calibrate(
-                    mode, zij_vector=zij_vector,
+                    options.calibration_method, zij_vector=zij_vector,
                     fft_results_2D=self.fft_results_2D, peak_idx=peak_idx,
                     iq_data=iq)
 
         # 根据2dfft结果 将TX和RX 进行分开幅相校准
-        if self.checkBox_channel_calibration.isChecked() and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
+        if options.apply_channel_calibration and self.calib_mgr.alpha_matrix is not None and self.calib_mgr.phi_matrix is not None:
             # 将校准后的IQ数据赋值给一个新的变量
             calibrated_iq = apply_channel_calibration(iq, self.calib_mgr.alpha_matrix, self.calib_mgr.phi_matrix)
             #对新的IQ数据 重新计算FFT
@@ -1154,7 +1170,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
         self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
-        if self.checkBox_channel_calibration.isChecked():
+        if options.apply_channel_calibration:
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g', show_all=False)
         else:
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)

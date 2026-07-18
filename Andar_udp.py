@@ -274,6 +274,62 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         self.tableWidget_point.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget_point.verticalHeader().setVisible(False)
 
+    def _update_basic_radar_plots(self, iq, chirp, sample, update_direct_wave=False):
+        """更新实时与回放共用的基础雷达图形。"""
+        self.display.update_adc4(iq, chirp, sample)
+        if update_direct_wave:
+            self.display.update_direct_wave_phase(self.fft_results_1D, index=1)
+        self.display.update_constellations(iq, remove_dc=True, max_points=3000, show_fit=True)
+        self.display.update_amp_phase(iq, chirp=0, decimate=1, unwrap_phase=False)
+        self.display.update_fft1d(self.fft_results_1D, sample)
+        self.display.update_fft2d(self.fft_results_2D, sample, chirp)
+
+    def _update_music_plots(self, az_grid, el_grid, spectrum_dB, peak_az, peak_el):
+        """更新一维与二维 MUSIC 谱图。"""
+        self.display.update_Azimuth_Spectrum(spectrum_dB, az_grid, el_grid, peak_az, peak_el)
+        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+
+    def _append_distance_result(self, index, R_fft, R_macleod, R_Rife,
+                                R_czt_fftpeak, R_czt_macleod, diag):
+        """按现有列顺序和格式向距离表格追加一行。"""
+        row_data = [
+            f"{index}",
+            f"{R_fft:.4f}",
+            f"{diag['f_fft_peak_Hz']:.4f}",
+            f"{R_macleod:.4f}",
+            f"{diag['f_macleod_Hz']:.4f}",
+            f"{R_Rife:.4f}",
+            f"{diag['f_rife_Hz']:.4f}",
+            f"{R_czt_fftpeak:.4f}",
+            f"{diag['f_czt_only_Hz']:.4f}",
+            f"{R_czt_macleod:.4f}",
+            f"{diag['f_combo_Hz']:.4f}",
+        ]
+        row_count = self.tableWidget_distance.rowCount()
+        self.tableWidget_distance.insertRow(row_count)
+        for column, value in enumerate(row_data):
+            item = QTableWidgetItem(value)
+            item.setTextAlignment(Qt.AlignCenter)
+            self.tableWidget_distance.setItem(row_count, column, item)
+        self.tableWidget_distance.scrollToBottom()
+
+    def _append_point_result(self, index, point_dict, display_angle):
+        """按现有列顺序和格式向点云表格追加一行。"""
+        row_data = [
+            f"{index}",
+            f"{point_dict['r']:.4f}",
+            f"{display_angle:.4f}",
+            f"{point_dict['x']:.4f}",
+            f"{point_dict['y']:.4f}",
+        ]
+        row_count = self.tableWidget_point.rowCount()
+        self.tableWidget_point.insertRow(row_count)
+        for column, value in enumerate(row_data):
+            item = QTableWidgetItem(value)
+            item.setTextAlignment(Qt.AlignCenter)
+            self.tableWidget_point.setItem(row_count, column, item)
+        self.tableWidget_point.scrollToBottom()
+
     def setupInitialUIState(self):
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
@@ -665,47 +721,24 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
             # 判断是否满足显示间隔
             if current_time - self.last_display_time > self.display_interval:
-                self.display.update_adc4(iq, chirp, sample)
-                self.display.update_constellations(iq, remove_dc=True, max_points=3000, show_fit=True)
-                self.display.update_amp_phase(iq, chirp=0, decimate=1, unwrap_phase=False)
-                self.display.update_fft1d(self.fft_results_1D, sample)
-                self.display.update_fft2d(self.fft_results_2D, sample, chirp)
+                self._update_basic_radar_plots(iq, chirp, sample)
                 self.last_display_time = current_time
-            else:
-                pass
 
             az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_1D)
             self.AZangelList.append(peak_az)
-            self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
-            self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+            self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
             if self.checkBox_channel_calibration.isChecked():
                 point_dict = self.display.update_point_cloud_polar("PointCloud", R_czt_macleod, 90.0-peak_az, size=10.0, color='g',show_all=False)
             else:
                 point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
 
             # 更新表格显示距离计算结果
-            row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                                f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",
-                                f"{R_Rife:.4f}",f"{diag['f_rife_Hz']:.4f}",
-                                f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
-                                f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
-            row_count = self.tableWidget_distance.rowCount()
-            self.tableWidget_distance.insertRow(row_count)
-            for i, value in enumerate(row_data_distance):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
-                self.tableWidget_distance.setItem(row_count, i, item)
-            self.tableWidget_distance.scrollToBottom()# 滚动到底部
+            self._append_distance_result(
+                self.current_index, R_fft, R_macleod, R_Rife,
+                R_czt_fftpeak, R_czt_macleod, diag)
 
             #更新表格显示角度及点云计算结果
-            row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{point_dict['theta_deg']:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
-            row_count = self.tableWidget_point.rowCount()
-            self.tableWidget_point.insertRow(row_count)
-            for i, value in enumerate(row_data_point):
-                item = QTableWidgetItem(value)
-                item.setTextAlignment(Qt.AlignCenter)
-                self.tableWidget_point.setItem(row_count, i, item)
-            self.tableWidget_point.scrollToBottom()
+            self._append_point_result(self.current_index, point_dict, point_dict['theta_deg'])
             self.current_index += 1
 
         except Exception as e:
@@ -1117,43 +1150,21 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             calibrated_iq = iq
 
         #此时的calibrated_iq已经经过了校准（如果选中了校准），如果没有校准，则还是原始iq数据，后续显示和距离计算都使用这个数据
-        self.display.update_adc4(calibrated_iq, chirp, sample)
-        self.display.update_direct_wave_phase(self.fft_results_1D,index=1)
-        self.display.update_constellations(calibrated_iq, remove_dc=True, max_points=3000, show_fit=True)
-        self.display.update_amp_phase(calibrated_iq, chirp=0, decimate=1, unwrap_phase=False)
-        self.display.update_fft1d(self.fft_results_1D, sample)
-        self.display.update_fft2d(self.fft_results_2D, sample, chirp)
+        self._update_basic_radar_plots(calibrated_iq, chirp, sample, update_direct_wave=True)
 
         az_grid, el_grid, spectrum_dB, peak_az, peak_el = music_2d_spectrum_auto(self.fft_results_2D)
-        self.display.update_Azimuth_Spectrum(spectrum_dB,az_grid,el_grid,peak_az,peak_el)
-        self.display.update_MUSIC2dSpectrum(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
+        self._update_music_plots(az_grid, el_grid, spectrum_dB, peak_az, peak_el)
         if self.checkBox_channel_calibration.isChecked():
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_macleod, 90.0-peak_az, size=10.0, color='g', show_all=False)
         else:
             point_dict = self.display.update_point_cloud_polar("PointCloud", R_fft, 90.0-peak_az, size=10.0, color='g', show_all=False)
         # 更新表格显示距离计算结果
-        row_data_distance = [f"{self.current_index}",f"{R_fft:.4f}",f"{diag['f_fft_peak_Hz']:.4f}",
-                            f"{R_macleod:.4f}",f"{diag['f_macleod_Hz']:.4f}",
-                            f"{R_Rife:.4f}",f"{diag['f_rife_Hz']:.4f}",
-                            f"{R_czt_fftpeak:.4f}",f"{diag['f_czt_only_Hz']:.4f}",
-                            f"{R_czt_macleod:.4f}",f"{diag['f_combo_Hz']:.4f}"]
-        row_count = self.tableWidget_distance.rowCount()
-        self.tableWidget_distance.insertRow(row_count)
-        for i, value in enumerate(row_data_distance):
-            item = QTableWidgetItem(value)
-            item.setTextAlignment(Qt.AlignCenter)# 设置单元格居中对齐
-            self.tableWidget_distance.setItem(row_count, i, item)
-        self.tableWidget_distance.scrollToBottom()# 滚动到底部
+        self._append_distance_result(
+            self.current_index, R_fft, R_macleod, R_Rife,
+            R_czt_fftpeak, R_czt_macleod, diag)
 
         #更新表格显示角度及点云计算结果
-        row_data_point = [f"{self.current_index}", f"{point_dict['r']:.4f}", f"{peak_az:.4f}", f"{point_dict['x']:.4f}", f"{point_dict['y']:.4f}"]
-        row_count = self.tableWidget_point.rowCount()
-        self.tableWidget_point.insertRow(row_count)
-        for i, value in enumerate(row_data_point):
-            item = QTableWidgetItem(value)
-            item.setTextAlignment(Qt.AlignCenter)
-            self.tableWidget_point.setItem(row_count, i, item)
-        self.tableWidget_point.scrollToBottom()
+        self._append_point_result(self.current_index, point_dict, peak_az)
 
         # ---------- 视频帧同步（回放模式） ----------
         if self.video_playback_cap is not None and self.total_video_frames > 0:

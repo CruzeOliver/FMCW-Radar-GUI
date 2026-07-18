@@ -1,9 +1,7 @@
 """在独立 Qt 工作线程中串行执行实时与回放雷达算法。"""
 
 from contextlib import contextmanager
-
 from PySide6.QtCore import QObject, Signal, Slot
-
 
 class RadarWorker(QObject):
     """串行处理雷达帧，并通过信号把结果交回 GUI 主线程。"""

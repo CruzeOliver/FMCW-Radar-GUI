@@ -27,7 +27,7 @@ This program is specially optimized for radar signal processing. With the high-p
 ### Radar Processing
 
 - `radar_models.py`: Named data models shared by the GUI, processor, and worker, including complete radar frames, processing-option snapshots, distance/MUSIC results, and the complete per-frame result.
-- `radar_processor.py`: Single-frame processing pipeline for both live UDP data and MAT playback. It organizes IQ reordering, FFT, ranging, direct-wave phase extraction, channel calibration, and MUSIC 1D/2D processing without accessing GUI widgets.
+- `radar_pipeline.py`: Single-frame processing pipeline for both live UDP data and MAT playback. It organizes IQ reordering, FFT, ranging, direct-wave phase extraction, channel calibration, and MUSIC 1D/2D processing without accessing GUI widgets.
 - `data_processing.py`: Core radar signal-processing functions, including 1D/2D FFT, precise ranging algorithms, compensation utilities, and MUSIC spectrum estimation.
 - `WLS_Calibration.py`: Mathematical implementations for LS/WLS amplitude and phase calibration, weighting, noise estimation, and channel compensation.
 - `calibration_manager.py`: Calibration state machine. It manages warm-up frames, valid-frame collection, matrix calculation, calibration-file output, loaded matrices, and notification callbacks.
@@ -56,12 +56,12 @@ Radar device
   -> raw packet queue
   -> frame assembler thread
   -> complete frame queue
-  -> RadarWorker (RadarProcessor)
+  -> RadarWorker (RadarPipeline)
   -> RadarResult
   -> GUI thread: plots, tables, video synchronization
 ```
 
-Both live data and MAT playback use the same `RadarProcessor`. They retain their original mode-specific ranging parameters and point-cloud distance choices. All Qt widget and PyQtGraph updates remain in the GUI thread.
+Both live data and MAT playback use the same `RadarPipeline`. They retain their original mode-specific ranging parameters and point-cloud distance choices. All Qt widget and PyQtGraph updates remain in the GUI thread.
 
 ### UI Development Workflow
 
@@ -84,7 +84,7 @@ pyside6-uic Radar_UDP.ui -o UI/Ui_Radar_UDP.py
 Before running the project, please make sure you have installed all necessary Python libraries. You can use `pip` to install them:
 
 ```bash
-pip install PySide6 pyqtgraph numpy scipy opencv-python PyOpenGL
+pip install -r requirements.txt
 ```
 
 - **`PySide6`**: For building the graphical user interface and Qt worker threads.

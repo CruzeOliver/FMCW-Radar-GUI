@@ -105,7 +105,7 @@ class PgDisplay:
 
     def update_direct_wave_phases(self, phases: np.ndarray):
         """
-        使用 RadarProcessor 已提取的四通道相位更新直达波监控图。
+        使用 RadarPipeline 已提取的四通道相位更新直达波监控图。
         通过限制历史数据长度和强制设置 X 轴范围来实现平滑滚动。
 
         参数：
@@ -846,7 +846,7 @@ class PgDisplay:
                                peak_value: float,
                                source_peak_el: float):
         """
-        更新已经由 RadarProcessor 独立整理好的 MUSIC 一维方位角谱。
+        更新已经由 RadarPipeline 独立整理好的 MUSIC 一维方位角谱。
 
         参数:
             angles: 方位角坐标。

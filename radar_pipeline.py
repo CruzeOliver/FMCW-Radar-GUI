@@ -22,7 +22,7 @@ from udp_handler import reorder_frame_TDMMIMO, reorder_frame_TDMMIMO_with_noise
 from WLS_Calibration import apply_channel_calibration
 
 
-class RadarProcessor:
+class RadarPipeline:
     """按实时或回放模式组织一帧雷达数据的现有处理流程。"""
 
     DIRECT_WAVE_BIN = 1

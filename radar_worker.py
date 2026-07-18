@@ -18,9 +18,9 @@ class RadarWorker(QObject):
     show_info = Signal(str, str)
     show_warning = Signal(str, str)
 
-    def __init__(self, processor):
+    def __init__(self, pipeline):
         super().__init__()
-        self.processor = processor
+        self.pipeline = pipeline
         self._calibration_completed = False
         self._info_messages = []
         self._warning_messages = []
@@ -37,7 +37,7 @@ class RadarWorker(QObject):
     @contextmanager
     def _calibration_callbacks(self):
         """在单个工作任务期间临时接管校准通知。"""
-        manager = self.processor.calibration_manager
+        manager = self.pipeline.calibration_manager
         previous_callbacks = manager.set_callbacks(
             on_complete=self._mark_calibration_complete,
             on_log=self.log_message.emit,
@@ -65,7 +65,7 @@ class RadarWorker(QObject):
     def process_live_frame(self, radar_frame, options, submitted_at, session_id):
         try:
             with self._calibration_callbacks():
-                result = self.processor.process_live_frame(radar_frame, options)
+                result = self.pipeline.process_live_frame(radar_frame, options)
                 self.result_ready.emit(
                     result, radar_frame, options, submitted_at, session_id)
                 self._emit_calibration_notifications(
@@ -81,7 +81,7 @@ class RadarWorker(QObject):
                                options, playback_index, session_id):
         try:
             with self._calibration_callbacks():
-                result = self.processor.process_playback_frame(
+                result = self.pipeline.process_playback_frame(
                     frame_data_flat, sample_count, chirp_count, options)
                 self.playback_result_ready.emit(
                     result, sample_count, chirp_count, options,

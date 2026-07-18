@@ -2,7 +2,7 @@ from UI.Ui_Radar_UDP import Ui_MainWindow
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
 from PySide6.QtCore import QThread,QObject, Signal, Slot, Qt, QtMsgType, qInstallMessageHandler, QTimer
 from PySide6.QtGui import QPixmap, QIcon, QAction
-import sys, socket, threading
+import sys, socket, threading, queue
 from scipy.io import loadmat
 import scipy
 import numpy as np
@@ -13,14 +13,12 @@ import csv
 import os
 import cv2
 from datetime import datetime
-from data_processing import *
 import motorController
-from udp_handler import *
+from udp_handler import RobustFrameAssembler
 from display_pg import PgDisplay
-from WLS_Calibration import *
 from calibration_manager import CalibrationManager
 from radar_models import RadarFrame, RadarProcessingOptions
-from radar_processor import RadarProcessor
+from radar_pipeline import RadarPipeline
 from radar_worker import RadarWorker
 
 # ---- YOLO OBB 可选依赖检测 ----
@@ -171,6 +169,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         #self.resize(1800, 1400)
         self.load_styles()
         self.setup_table()
+        self.connectApplicationSignals()
         self.setupInitialUIState()
         self.tabWidget_Display.setMovable(True) #把widgets_tab设置为可移动转为dock
 
@@ -207,7 +206,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             on_show_info=lambda t, m: QMessageBox.information(self, t, m),
             on_show_warning=lambda t, m: QMessageBox.warning(self, t, m),
         )
-        self.radar_processor = RadarProcessor(self.calib_mgr)
+        self.radar_pipeline = RadarPipeline(self.calib_mgr)
         # display 控件相关变量 GUI显示界面绑定实例化
         self.last_display_time = time.time()# 记录最后显示的时间
         self.display_interval = 0.5
@@ -375,7 +374,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     def _setup_radar_worker(self):
         """创建只负责实时帧算法计算的 Qt 工作线程。"""
         self.radar_thread = QThread(self)
-        self.radar_worker = RadarWorker(self.radar_processor)
+        self.radar_worker = RadarWorker(self.radar_pipeline)
         self.radar_worker.moveToThread(self.radar_thread)
         self.radar_thread.finished.connect(self.radar_worker.deleteLater)
 
@@ -546,9 +545,13 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             self.radar_thread.quit()
             self.radar_thread.wait()
 
-    def setupInitialUIState(self):
+    def connectApplicationSignals(self):
+        """连接仅需注册一次的应用信号。"""
         self.checkBox_CalibrationMode.stateChanged.connect(self.CalibrationModeMessage)
         self.checkBox_IsSave.stateChanged.connect(self.SaveMatChange)
+
+    def setupInitialUIState(self):
+        """重置可重复恢复的 UI 控件状态，不注册信号。"""
         self.pushButton_Disconnect.setEnabled(False)
         self.pushButton_MotorDisconnect.setEnabled(False)
         self.pushButton_MoveAngel.setEnabled(False)

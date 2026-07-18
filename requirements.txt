@@ -1,0 +1,10 @@
+# Core runtime dependencies
+PySide6
+pyqtgraph
+numpy
+scipy
+opencv-python
+PyOpenGL
+
+# Optional YOLO OBB support is not required for the core application.
+# Install it separately when needed: pip install ultralytics

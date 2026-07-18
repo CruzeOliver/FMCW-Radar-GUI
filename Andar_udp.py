@@ -160,6 +160,7 @@ class UdpReceiver(threading.Thread):
 # ================== 主窗口初始化 ==================
 class MyMainForm(QMainWindow, Ui_MainWindow):
     process_live_frame_requested = Signal(object, object, float, int)
+    process_playback_frame_requested = Signal(object, int, int, object, int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -233,6 +234,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         # 实时雷达算法工作线程（MAT 回放仍在 GUI 主线程同步处理）
         self.radar_worker_busy = False
         self.live_session_id = 0
+        self.playback_session_id = 0
         self._setup_radar_worker()
         # 创建菜单
         self.create_menus()
@@ -381,11 +383,21 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         self.process_live_frame_requested.connect(
             self.radar_worker.process_live_frame)
+        self.process_playback_frame_requested.connect(
+            self.radar_worker.process_playback_frame)
         self.radar_worker.result_ready.connect(self._on_live_radar_result)
         self.radar_worker.processing_error.connect(self._on_live_processing_error)
         self.radar_worker.task_finished.connect(self._on_live_processing_finished)
         self.radar_worker.calibration_complete.connect(
             self._on_live_calibration_complete)
+        self.radar_worker.playback_result_ready.connect(
+            self._on_playback_radar_result)
+        self.radar_worker.playback_error.connect(
+            self._on_playback_processing_error)
+        self.radar_worker.playback_task_finished.connect(
+            self._on_playback_processing_finished)
+        self.radar_worker.playback_calibration_complete.connect(
+            self._on_playback_calibration_complete)
         self.radar_worker.log_message.connect(self.bus.log.emit)
         self.radar_worker.show_info.connect(self._show_worker_info)
         self.radar_worker.show_warning.connect(self._show_worker_warning)
@@ -459,6 +471,81 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
     @Slot(int)
     def _on_live_calibration_complete(self, session_id):
         if session_id == self.live_session_id:
+            self._on_calibration_complete()
+
+    @Slot(object, int, int, object, int, int)
+    def _on_playback_radar_result(
+        self, result, sample, chirp, options, playback_index, session_id):
+        """在 GUI 主线程中显示 MAT 回放算法线程返回的结果。"""
+        if session_id != self.playback_session_id:
+            return
+
+        self.fft_results_1D = result.fft1d
+        self.fft_results_2D = result.fft2d
+        self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
+        self._update_basic_radar_plots(
+            result.display_iq,
+            chirp,
+            sample,
+            direct_wave_phases=result.direct_wave_phases)
+        self._update_music_1d_plot(result.music_1d)
+        self._update_music_2d_plot(result.music_2d)
+
+        if options.apply_channel_calibration:
+            point_distance = result.distance_macleod
+        else:
+            point_distance = result.distance_fft
+        point_dict = self.display.update_point_cloud_polar(
+            "PointCloud",
+            point_distance,
+            90.0 - result.music_2d.peak_az,
+            size=10.0,
+            color='g',
+            show_all=False)
+
+        self._append_distance_result(
+            playback_index,
+            result.distance_fft,
+            result.distance_macleod,
+            result.distance_rife,
+            result.distance_czt_fftpeak,
+            result.distance_czt_macleod,
+            result.distance_diagnostics)
+        self._append_point_result(
+            playback_index, point_dict, result.music_2d.peak_az)
+        self._update_playback_video_frame(playback_index)
+
+    def _update_playback_video_frame(self, playback_index):
+        """按当前雷达帧索引同步显示对应的视频帧。"""
+        if self.video_playback_cap is None or self.total_video_frames <= 0:
+            return
+        target_video_frame = int(
+            playback_index
+            * (self.total_video_frames / max(1, self.total_radar_frames)))
+        try:
+            self.video_playback_cap.set(
+                cv2.CAP_PROP_POS_FRAMES, target_video_frame)
+            ret, frame = self.video_playback_cap.read()
+            if ret and frame is not None:
+                self.display.update_video_frame('video', frame)
+        except Exception as error:
+            print(f"[video playback] 跳帧失败: {error}")
+
+    @Slot(int, str, int)
+    def _on_playback_processing_error(
+        self, playback_index, message, session_id):
+        if session_id != self.playback_session_id:
+            return
+        self.bus.log.emit(
+            f"⛔ 回放帧 {playback_index} 处理失败: {message}")
+
+    @Slot(int)
+    def _on_playback_processing_finished(self, session_id):
+        self.radar_worker_busy = False
+
+    @Slot(int)
+    def _on_playback_calibration_complete(self, session_id):
+        if session_id == self.playback_session_id:
             self._on_calibration_complete()
 
     def _shutdown_radar_worker(self):
@@ -617,7 +704,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def _on_calibration_complete(self):
         """校准完成后的清理（由 CalibrationManager 回调）。"""
-        self.CloseFile()
+        self._close_file_state()
         self.UDP_disconnect()
         self.play_timer.stop()
         self.pushButton_Play.setText("Play")
@@ -948,6 +1035,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         打开文件对话框，选择 .npz 文件并读取数据
         """
+        if self.radar_worker_busy:
+            QMessageBox.information(
+                self, "请稍候", "当前雷达帧仍在处理中，请稍后再加载校准文件。")
+            return
         file_dialog = QFileDialog(self, "Load Calibration Mode File")
         file_dialog.setNameFilter("Mode files (*.npz)")
         if file_dialog.exec():
@@ -1050,6 +1141,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         """
         打开文件对话框，选择 .mat 文件并读取数据
         """
+        if self.radar_worker_busy:
+            QMessageBox.information(
+                self, "请稍候", "当前雷达帧仍在处理中，请稍后再打开文件。")
+            return
         file_dialog = QFileDialog(self, "Open MAT File")
         file_dialog.setNameFilter("MAT files (*.mat)")
         if file_dialog.exec():
@@ -1065,6 +1160,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
         读取 MAT 文件中的数据，并自动挂载同目录下同名的 .avi 视频文件。
         若视频文件不存在或无法解码，仅记录日志提示，不影响 mat 数据加载。
         """
+        self.playback_session_id += 1
         try:
             data = loadmat(filename) # 读取 .mat 文件
             self.frame_all_data = data
@@ -1165,7 +1261,9 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
             if self.current_index >= len(self.frame_data_list) - 1:
                 # 如果已经在最后一帧，则从头开始
                 self.current_index = 0
-                self.show_matrix(self.frame_all_data[self.frame_data_list[self.current_index]])
+                frame_struct = self.frame_all_data[
+                    self.frame_data_list[self.current_index]][0, 0]
+                self.show_matrix(frame_struct)
 
             # 启动定时器
             self.play_timer.start(self.playback_speed_ms) # 使用预设的间隔
@@ -1176,8 +1274,10 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def show_matrix(self, frame_struct):
         """
-        显示当前帧的数据
+        解析当前 MAT 帧并提交到雷达算法工作线程。
         """
+        if self.radar_worker_busy:
+            return False
         #print(f"显示当前帧数据：{frame_data}")
         #print(f"帧数据形状：{frame_data.shape}")
         #self.bus.log.emit(f"{self.frame_data_list[self.current_index]} 数据已加载")
@@ -1189,60 +1289,32 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
         except Exception as e:
             self.bus.log.emit(f"⛔ 读取帧结构失败: {e}。数据可能已损坏或格式陈旧。")
-            return
+            return False
 
         options = self._build_processing_options()
-
-        #  处理数据并更新显示
         frame_data_flat = frame_data.flatten()
-        result = self.radar_processor.process_playback_frame(
-            frame_data_flat, sample, chirp, options)
-        self.fft_results_1D = result.fft1d
-        self.fft_results_2D = result.fft2d
-        self.display.update_frequency(result.raw_iq, result.distance_diagnostics)
-        self._update_basic_radar_plots(
-            result.display_iq,
-            chirp,
-            sample,
-            direct_wave_phases=result.direct_wave_phases)
-
-        self._update_music_1d_plot(result.music_1d)
-        self._update_music_2d_plot(result.music_2d)
-        if options.apply_channel_calibration:
-            point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_macleod, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
-        else:
-            point_dict = self.display.update_point_cloud_polar("PointCloud", result.distance_fft, 90.0-result.music_2d.peak_az, size=10.0, color='g', show_all=False)
-        # 更新表格显示距离计算结果
-        self._append_distance_result(
-            self.current_index,
-            result.distance_fft,
-            result.distance_macleod,
-            result.distance_rife,
-            result.distance_czt_fftpeak,
-            result.distance_czt_macleod,
-            result.distance_diagnostics)
-
-        #更新表格显示角度及点云计算结果
-        self._append_point_result(self.current_index, point_dict, result.music_2d.peak_az)
-
-        # ---------- 视频帧同步（回放模式） ----------
-        if self.video_playback_cap is not None and self.total_video_frames > 0:
-            target_video_frame = int(
-                self.current_index *
-                (self.total_video_frames / max(1, self.total_radar_frames))
-            )
-            try:
-                self.video_playback_cap.set(cv2.CAP_PROP_POS_FRAMES, target_video_frame)
-                ret, frame = self.video_playback_cap.read()
-                if ret and frame is not None:
-                    self.display.update_video_frame('video', frame)
-            except Exception as e:
-                print(f"[video playback] 跳帧失败: {e}")
+        self.radar_worker_busy = True
+        try:
+            self.process_playback_frame_requested.emit(
+                frame_data_flat,
+                sample,
+                chirp,
+                options,
+                self.current_index,
+                self.playback_session_id)
+            return True
+        except Exception as error:
+            self.radar_worker_busy = False
+            self.bus.log.emit(
+                f"⛔ 回放帧 {self.current_index} 提交失败: {error}")
+            return False
 
     def ShowNextFrame(self):
         """
         显示下一帧的数据，供手动和定时器调用。
         """
+        if self.radar_worker_busy:
+            return
         if self.current_index < len(self.frame_data_list) - 1:
             self.current_index += 1
             self.progressBar_file.setValue(self.current_index+1)
@@ -1258,6 +1330,18 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                 QMessageBox.information(self, "没有更多数据", "已到达文件末尾！")
 
     def CloseFile(self):
+        if self.radar_worker_busy:
+            QMessageBox.information(
+                self, "请稍候", "当前雷达帧仍在处理中，请稍后再关闭文件。")
+            return
+        self._close_file_state()
+
+    def _close_file_state(self):
+        """清理已加载文件；校准完成时可在任务结果返回后直接调用。"""
+        self.playback_session_id += 1  # 使仍在计算的旧回放结果失效
+        self.play_timer.stop()
+        self.is_playing = False
+        self.pushButton_Play.setText("Play")
         self._release_video_playback()
         self.frame_all_data = None
         self.frame_data_list = []  # 清空数据
@@ -1374,6 +1458,8 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
 
     def closeEvent(self, e):
         self.UDP_disconnect()
+        self.playback_session_id += 1
+        self.play_timer.stop()
         self._shutdown_radar_worker()
         self.VideoClose()
         self._release_video_playback()

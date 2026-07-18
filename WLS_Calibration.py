@@ -1,3 +1,10 @@
+"""雷达多通道幅度与相位校准的数学算法模块。
+
+本文件实现 LS、WLS 及 FFT 相关的校准计算、权重与噪声估计，以及将已生成的
+幅相矩阵应用到 IQ 数据的通道补偿函数。CalibrationManager 负责组织校准状态，
+RadarPipeline 负责调用；本模块只进行数值计算，不管理 GUI、线程或文件流程。
+"""
+
 import numpy as np
 import warnings
 from scipy.fft import fft, ifft, fftfreq

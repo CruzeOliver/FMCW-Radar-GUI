@@ -1,3 +1,11 @@
+"""雷达处理结果的 PyQtGraph 显示模块。
+
+PgDisplay 负责创建和更新 ADC、FFT、直达波、星座图、幅相、频谱、MUSIC、
+点云及视频等视图。输入是主窗口传入的 IQ 数据或 RadarResult 中的结果；
+本文件只处理绘图和显示状态，不接收 UDP 数据，也不执行雷达核心算法。
+所有公开更新方法都应由 GUI 主线程调用。
+"""
+
 from typing import Dict, Any, List
 from PySide6.QtWidgets import QVBoxLayout, QWidget, QGraphicsPathItem, QLabel
 from PySide6.QtCore import QRectF, Qt

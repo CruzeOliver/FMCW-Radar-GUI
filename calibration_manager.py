@@ -1,7 +1,9 @@
-"""
-校准流程管理器 —— 管理 LS / WLS / FFT 三种校准方法的数据收集、计算与保存。
-本模块不依赖 Qt，通过回调函数与主窗口解耦。
-纯数学函数（幅相校准、权重计算等）仍位于 WLS_Calibration.py。
+"""雷达通道校准流程管理器。
+
+本文件管理 LS、WLS 和 FFT 三种校准方式的状态，包括预热、有效帧收集、
+校准矩阵生成、文件加载与完成通知。输入来自 RadarPipeline 提取的 IQ 或频域
+特征，输出为幅度矩阵和相位矩阵。具体数学计算保留在 WLS_Calibration.py；
+本模块不依赖 Qt，而是通过回调与 RadarWorker 和主窗口通信。
 """
 import numpy as np
 from datetime import datetime

@@ -1,4 +1,9 @@
-"""雷达处理流程中使用的轻量数据模型。"""
+"""雷达处理链路中使用的轻量数据模型。
+
+RadarFrame 表示组帧完成后的原始雷达帧，RadarProcessingOptions 保存任务提交时
+的界面选项快照；RadarResult、Music1DResult 和 Music2DResult 则统一描述算法
+线程的输出。集中定义这些结构可以减少元组下标和跨线程参数混淆。
+"""
 
 from dataclasses import dataclass
 from typing import Optional

@@ -1,6 +1,9 @@
-"""雷达单帧算法流程。
+"""实时与回放共用的雷达单帧算法流水线。
 
-该模块只组织现有算法调用，不操作 GUI、不保存文件，也不改变算法参数。
+RadarPipeline 接收完整雷达帧或 MAT 回放帧以及处理选项，依次组织 IQ 重排、
+FFT、精密测距、直达波、通道校准和 MUSIC 处理，最后返回统一 RadarResult。
+具体数学实现来自 data_processing.py 和 WLS_Calibration.py；本模块不操作 GUI、
+不收发 UDP、不保存文件，也不改变实时与回放各自原有的算法参数。
 """
 
 import numpy as np

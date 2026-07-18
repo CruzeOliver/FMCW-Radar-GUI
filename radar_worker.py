@@ -1,4 +1,9 @@
-"""在独立 Qt 工作线程中串行执行实时与回放雷达算法。"""
+"""雷达算法流水线的 Qt 工作线程适配器。
+
+RadarWorker 接收主窗口通过信号提交的实时帧或回放帧，在线程中串行调用
+RadarPipeline，并通过 Qt 信号把结果、错误、日志和校准通知送回 GUI 主线程。
+它本身不实现雷达算法，主要负责跨线程调度、异常隔离和通知转发。
+"""
 
 from contextlib import contextmanager
 from PySide6.QtCore import QObject, Signal, Slot

@@ -1,3 +1,10 @@
+"""UDP 雷达协议解析、完整帧组装与 TDM-MIMO IQ 重排模块。
+
+RobustFrameAssembler 在线程中从 raw_queue 获取固定长度 UDP 包，按当前小端协议
+解析配置头、检查帧长度和超时，并把完整帧写入 frame_queue。本文件还提供实时
+与 MAT 回放共用的 IQ 通道重排函数。它不操作 GUI，也不负责雷达算法结果显示。
+"""
+
 import threading
 import queue
 import time

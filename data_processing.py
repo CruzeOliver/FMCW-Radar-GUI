@@ -1,3 +1,10 @@
+"""雷达信号处理与距离、角度估计算法集合。
+
+本文件保存项目的核心数学算法，包括一维/二维 FFT、FFT/CZT/Macleod/Rife
+测距、补偿处理和 MUSIC 空间谱估计等。RadarPipeline 按实时或回放流程调用
+这些函数；本模块不负责 UDP 通信、线程调度、文件存储或 GUI 绘图。
+"""
+
 import numpy as np
 from datetime import datetime
 from scipy.signal import czt, get_window

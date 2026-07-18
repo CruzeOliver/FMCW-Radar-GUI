@@ -1,3 +1,11 @@
+"""雷达上位机主程序与 GUI 协调器。
+
+本文件是应用程序入口，负责初始化 Qt 界面，并协调 UDP 接收、完整帧队列、
+MAT 原始数据保存与回放、摄像头、结果显示、雷达算法工作线程和电机界面操作。
+雷达算法由 RadarPipeline 组织并在 RadarWorker 所在线程执行；本文件只负责
+构造输入、提交任务，以及在 GUI 主线程中更新控件、图形和表格。
+"""
+
 from UI.Ui_Radar_UDP import Ui_MainWindow
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QDockWidget, QWidget
 from PySide6.QtCore import QThread,QObject, Signal, Slot, Qt, QtMsgType, qInstallMessageHandler, QTimer
